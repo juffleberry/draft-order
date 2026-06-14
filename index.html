@@ -56,8 +56,8 @@
     tr:hover .team-name { color: #f8fafc; background: #0d1b2e; }
 
     .prob-cell {
-      width: 62px;
-      min-width: 62px;
+      width: 66px;
+      min-width: 66px;
       text-align: center;
       padding: 0.4rem 0.2rem;
       font-size: 0.72rem;
@@ -638,13 +638,11 @@ function getBestEstimate(state) {
 // ─── HEAT MAP COLOR ─────────────────────────────────────────────────────────
 function heatColor(pct) {
   // 0% → near-black, high% → bright teal/green
-  if (pct < 0.5) return { bg: '#0d1b2e', text: 'transparent' };
   const t = Math.min(pct / 40, 1); // saturate at 40%
-  // Interpolate: dark navy → teal-green
   const r = Math.round(13  + t * (34 - 13));
   const g = Math.round(27  + t * (197 - 27));
   const b = Math.round(46  + t * (94 - 46));
-  const textOpacity = 0.4 + t * 0.6;
+  const textOpacity = pct < 0.5 ? 0.25 : (0.4 + t * 0.6);
   return {
     bg: `rgb(${r},${g},${b})`,
     text: `rgba(255,255,255,${textOpacity})`
@@ -709,7 +707,7 @@ function renderGrid(probs, currentEstimate, state, sortCol = currentSortCol) {
       cell.className = 'prob-cell';
       cell.style.background = bg;
       cell.style.color = text;
-      cell.textContent = pct >= 1 ? `${pct.toFixed(0)}%` : (pct >= 0.5 ? `${pct.toFixed(1)}%` : '');
+      cell.textContent = `${pct.toFixed(1)}%`;
       cell.title = `${team} → Pick ${pick + 1}: ${pct.toFixed(1)}%`;
       row.appendChild(cell);
     }
