@@ -68,6 +68,11 @@
     }
     .prob-cell:hover { filter: brightness(1.25); }
 
+    th.sortable { cursor: pointer; }
+    th.sortable:hover { color: #e2e8f0; }
+    th.sort-active { color: #60a5fa; }
+    th.sort-active::after { content: ' ↓'; }
+
     .legend {
       padding: 0 2rem 0.75rem;
       display: flex;
@@ -653,27 +658,33 @@ const STAGE_STYLE = {
   7: { bg: '#2a2410', color: '#fcd34d', label: 'Winner' },
 };
 
-function renderGrid(probs, currentEstimate, state) {
+function renderGrid(probs, currentEstimate, state, sortCol = currentSortCol) {
   const table = document.getElementById('grid');
   table.innerHTML = '';
 
   // Build per-WC-team stage from state
   const wcTeamStage = { ...state.knockoutEliminated };
 
-  // Sort fantasy teams by most likely pick (pick with highest prob)
   const fantasyTeams = Object.keys(FANTASY_TEAMS);
-  const sortedTeams = [...fantasyTeams].sort((a, b) => {
-    const bestPickA = probs[a].indexOf(Math.max(...probs[a]));
-    const bestPickB = probs[b].indexOf(Math.max(...probs[b]));
-    return bestPickA - bestPickB;
-  });
+  const sortedTeams = sortTeams(fantasyTeams, probs, sortCol);
 
   // Header
   const hr = document.createElement('tr');
-  let hHTML = '<th class="corner">Fantasy Team</th>';
-  for (let i = 1; i <= 16; i++) hHTML += `<th>Pick ${i}</th>`;
-  hr.innerHTML = hHTML;
+  const cornerTh = `<th class="corner">Fantasy Team</th>`;
+  const pickThs = Array.from({ length: 16 }, (_, i) => {
+    const active = sortCol === i ? 'sort-active' : '';
+    return `<th class="sortable ${active}" data-pick="${i}">Pick ${i + 1}</th>`;
+  }).join('');
+  hr.innerHTML = cornerTh + pickThs;
   table.appendChild(hr);
+
+  // Column header click → sort by that pick
+  hr.querySelectorAll('th.sortable').forEach(th => {
+    th.addEventListener('click', () => {
+      currentSortCol = parseInt(th.dataset.pick);
+      if (lastProbs) renderGrid(lastProbs, lastEstimate, lastState, currentSortCol);
+    });
+  });
 
   for (const team of sortedTeams) {
     const wcTeams = FANTASY_TEAMS[team];
@@ -752,6 +763,22 @@ function buildLegend() {
 // ─── MAIN ────────────────────────────────────────────────────────────────────
 let refreshTimer = null;
 let isRunning = false;
+let lastProbs = null;
+let lastEstimate = null;
+let lastState = null;
+let currentSortCol = null; // null = sort by peak pick, 0-15 = sort by that pick descending
+
+function sortTeams(fantasyTeams, probs, sortCol) {
+  return [...fantasyTeams].sort((a, b) => {
+    if (sortCol !== null) {
+      return probs[b][sortCol] - probs[a][sortCol];
+    }
+    // Default: sort by the pick index where each team has their highest probability
+    const bestPickA = probs[a].indexOf(Math.max(...probs[a]));
+    const bestPickB = probs[b].indexOf(Math.max(...probs[b]));
+    return bestPickA - bestPickB;
+  });
+}
 
 async function refresh() {
   if (isRunning) return;
@@ -773,7 +800,10 @@ async function refresh() {
     const probs = runMonteCarlo(state, 10000);
     const currentEstimate = getBestEstimate(state);
 
-    renderGrid(probs, currentEstimate, state);
+    lastProbs = probs;
+    lastEstimate = currentEstimate;
+    lastState = state;
+    renderGrid(probs, currentEstimate, state, currentSortCol);
 
     const now = new Date();
     const pendingGames = events.length - state.completedCount;
