@@ -251,9 +251,12 @@ function getStrength(team) {
   return TEAM_STRENGTH[team] || AVG_STRENGTH;
 }
 
-// Lambda for Poisson goal model scaled by team strength
+// Lambda for Poisson goal model scaled by team strength.
+// Squared ratio amplifies the gap between strong and weak teams —
+// linear scaling was too compressed (Spain vs Cabo Verde looked nearly even).
 function goalLambda(team) {
-  return Math.max(0.3, Math.min(3.0, 1.3 * getStrength(team) / AVG_STRENGTH));
+  const ratio = getStrength(team) / AVG_STRENGTH;
+  return Math.max(0.3, Math.min(3.5, 1.3 * ratio * ratio));
 }
 
 // ESPN display name → canonical name used above
