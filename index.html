@@ -258,7 +258,7 @@ function getStrength(team) {
 // linear scaling was too compressed (Spain vs Cabo Verde looked nearly even).
 function goalLambda(team) {
   const ratio = getStrength(team) / AVG_STRENGTH;
-  return Math.max(0.3, Math.min(3.5, 1.3 * ratio * ratio));
+  return Math.max(0.3, Math.min(4.0, 1.3 * ratio * ratio * ratio));
 }
 
 // ESPN display name → canonical name used above
