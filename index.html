@@ -6,80 +6,89 @@
   <title>WC 2026 Fantasy Draft Order</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: #0f172a; color: #e2e8f0; font-family: system-ui, -apple-system, sans-serif; min-height: 100vh; }
+    body { background: #0a0a0a; color: #e2e8f0; font-family: system-ui, -apple-system, sans-serif; min-height: 100vh; }
 
-    header { padding: 1.25rem 2rem; border-bottom: 1px solid #1e293b; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }
-    h1 { font-size: 1.25rem; font-weight: 700; color: #f8fafc; }
-    #status { font-size: 0.8rem; color: #64748b; margin-top: 0.2rem; }
+    header { padding: 1.25rem 2rem 1.25rem calc(2rem - 6px); border-left: 6px solid #0076B6; border-bottom: 1px solid rgba(187,185,185,0.2); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem; background: #000000; }
+    .header-main { display: flex; align-items: center; gap: 14px; flex: 1; min-width: 0; }
+    .header-icon { width: 44px; height: 44px; border-radius: 50%; background: #0076B6; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+    h1 { font-size: 1.25rem; font-weight: 700; color: #ffffff; }
+    #status { font-size: 0.75rem; color: rgba(255,255,255,0.5); margin-top: 0.2rem; }
+    .header-stats { display: flex; gap: 10px; flex-shrink: 0; }
+    .stat-box { text-align: center; padding: 5px 14px; border: 1px solid rgba(187,185,185,0.2); border-radius: 6px; }
+    .stat-box-value { font-size: 1.1rem; font-weight: 700; line-height: 1; color: #ffffff; }
+    .stat-box-value.stat-left { color: #0076B6; }
+    .stat-box-label { font-size: 0.6rem; color: #BBB9B9; text-transform: uppercase; letter-spacing: 0.08em; margin-top: 3px; }
 
-    .controls { padding: 0.75rem 2rem; display: flex; gap: 0.75rem; align-items: center; border-bottom: 1px solid #1e293b; }
-    button { background: #1e40af; color: white; border: none; padding: 0.35rem 0.9rem; border-radius: 5px; cursor: pointer; font-size: 0.8rem; transition: background 0.15s; }
-    button:hover { background: #1d4ed8; }
-    button:disabled { background: #334155; cursor: not-allowed; }
-    .auto-refresh { font-size: 0.75rem; color: #475569; }
+    .controls { padding: 0.75rem 2rem; display: flex; gap: 0.75rem; align-items: center; border-bottom: 1px solid rgba(187,185,185,0.2); }
+    button { background: #0076B6; color: white; border: none; padding: 0.35rem 0.9rem; border-radius: 5px; cursor: pointer; font-size: 0.8rem; transition: background 0.15s; }
+    button:hover { background: #005f92; }
+    button:disabled { background: #1a1a1a; color: #555; cursor: not-allowed; }
+    .auto-refresh { font-size: 0.75rem; color: #888; }
 
-    .grid-wrapper { padding: 1.25rem 2rem 1.5rem; overflow-x: auto; }
+    .grid-wrapper { padding: 1.25rem 2rem; overflow-x: auto; }
 
     table { border-collapse: collapse; font-size: 0.75rem; white-space: nowrap; }
 
     th {
-      background: #1e293b;
+      background: #0076B6;
       padding: 0.45rem 0.6rem;
       text-align: center;
       font-weight: 600;
-      color: #94a3b8;
-      border: 1px solid #0f172a;
+      color: #ffffff;
+      border: 1px solid rgba(0,0,0,0.3);
       position: sticky;
       top: 0;
       z-index: 2;
     }
     th.corner {
       text-align: left;
-      color: #475569;
+      color: rgba(255,255,255,0.85);
       position: sticky;
       left: 0;
       z-index: 3;
     }
 
     .team-name {
-      padding: 0.4rem 1rem 0.4rem 0.6rem;
+      padding: 0.4rem 0.6rem;
       white-space: nowrap;
       color: #cbd5e1;
       font-weight: 500;
-      background: #0f172a;
+      background: #0a0a0a;
       position: sticky;
       left: 0;
       z-index: 1;
-      border-right: 1px solid #1e293b;
-      border-bottom: 1px solid #1a2744;
+      border-right: 1px solid rgba(187,185,185,0.15);
+      border-bottom: 1px solid rgba(187,185,185,0.08);
     }
-    tr:hover .team-name { color: #f8fafc; background: #0d1b2e; }
+    tr:hover .team-name { color: #f8fafc; background: #0d0d0d; }
 
     .prob-cell {
       width: 66px;
       min-width: 66px;
       text-align: center;
       padding: 0.4rem 0.2rem;
-      font-size: 0.72rem;
+      font-size: 0.75rem;
       font-weight: 600;
-      border: 1px solid rgba(0,0,0,0.2);
+      border: 1px solid rgba(0,0,0,0.25);
       cursor: default;
       transition: filter 0.1s;
     }
     .prob-cell:hover { filter: brightness(1.25); }
 
     th.sortable { cursor: pointer; }
-    th.sortable:hover { color: #e2e8f0; }
-    th.sort-active { color: #60a5fa; }
+    th.sortable:hover { color: #BBB9B9; }
+    th.sort-active { color: #BBB9B9; }
     th.sort-active::after { content: ' ↓'; }
 
     .legend {
-      padding: 0 2rem 0.75rem;
+      padding: 0.75rem 2rem;
       display: flex;
       align-items: center;
       gap: 0.6rem;
-      font-size: 0.72rem;
-      color: #475569;
+      font-size: 0.75rem;
+      color: #666;
+      border-top: 1px solid rgba(187,185,185,0.1);
+      flex-wrap: wrap;
     }
     .legend-bar {
       display: flex;
@@ -91,50 +100,50 @@
 
     .sim-info {
       padding: 0 2rem 1.5rem;
-      font-size: 0.72rem;
-      color: #334155;
+      font-size: 0.75rem;
+      color: #888;
       line-height: 1.6;
     }
 
     .error { color: #f87171; padding: 2rem; font-size: 0.9rem; }
 
-    #top-orders { padding: 0.75rem 2rem; border-bottom: 1px solid #1e293b; }
+    #top-orders { padding: 0.75rem 2rem; border-bottom: 1px solid rgba(187,185,185,0.2); }
     .top-order-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; }
-    .top-order-label { font-size: 0.75rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
-    .top-order-pct { font-size: 0.75rem; color: #34d399; font-weight: 700; }
-    .top-order-toggle { background: #1e293b; color: #94a3b8; border: none; padding: 0.2rem 0.6rem; border-radius: 4px; cursor: pointer; font-size: 0.72rem; }
-    .top-order-toggle:hover { background: #334155; color: #e2e8f0; }
+    .top-order-label { font-size: 0.75rem; font-weight: 600; color: #BBB9B9; text-transform: uppercase; letter-spacing: 0.05em; }
+    .top-order-pct { font-size: 0.75rem; color: #0076B6; font-weight: 700; }
+    .top-order-toggle { background: #111; color: #BBB9B9; border: 1px solid rgba(187,185,185,0.2); padding: 0.2rem 0.6rem; border-radius: 4px; cursor: pointer; font-size: 0.75rem; }
+    .top-order-toggle:hover { background: #1a1a1a; color: #e2e8f0; }
 
     .top-order-row { display: flex; flex-wrap: nowrap; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.5rem; }
-    .order-chip { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; background: #1e293b; border-radius: 8px; padding: 0.5rem 0.6rem; white-space: nowrap; flex-shrink: 0; min-width: 36px; }
-    .order-pick-num { font-size: 0.65rem; color: #475569; font-weight: 700; }
+    .order-chip { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; background: #111; border: 1px solid rgba(187,185,185,0.15); border-radius: 8px; padding: 0.5rem 0.6rem; white-space: nowrap; flex-shrink: 0; min-width: 36px; }
+    .order-pick-num { font-size: 0.7rem; color: #BBB9B9; font-weight: 700; }
     .order-logo { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
-    .order-team-name { font-size: 0.65rem; color: #cbd5e1; font-weight: 500; text-align: center; white-space: normal; line-height: 1.2; }
-    .banner-toggle { display: flex; background: #0f172a; border-radius: 5px; overflow: hidden; border: 1px solid #1e293b; }
-    .banner-tab { background: transparent; color: #475569; border: none; padding: 0.2rem 0.65rem; font-size: 0.72rem; cursor: pointer; border-radius: 0; transition: background 0.15s, color 0.15s; }
-    .banner-tab:hover { color: #94a3b8; }
-    .banner-tab-active { background: #1e293b; color: #e2e8f0; }
-    .order-adp { font-size: 0.6rem; color: #475569; font-weight: 600; }
+    .order-team-name { font-size: 0.7rem; color: #cbd5e1; font-weight: 500; text-align: center; white-space: normal; line-height: 1.2; }
+    .banner-toggle { display: flex; background: #0a0a0a; border-radius: 5px; overflow: hidden; border: 1px solid rgba(187,185,185,0.3); }
+    .banner-tab { background: transparent; color: #888; border: none; padding: 0.2rem 0.65rem; font-size: 0.75rem; cursor: pointer; border-radius: 0; transition: background 0.15s, color 0.15s; }
+    .banner-tab:hover { color: #BBB9B9; }
+    .banner-tab-active { background: #0076B6; color: #ffffff; }
+    .order-adp { font-size: 0.7rem; color: #888; font-weight: 600; }
     .order-chip-locked { background: #0f2e1a; border: 1px solid #166534; }
     .order-chip-locked .order-pick-num { color: #4ade80; }
     .order-chip-locked .order-team-name { color: #86efac; }
 
     .hidden { display: none !important; }
-    #dd-full { margin-top: 0.6rem; background: #0a1628; border: 1px solid #1e293b; border-radius: 6px; overflow: hidden; }
-    .dd-header { padding: 0.4rem 0.75rem; font-size: 0.7rem; color: #475569; border-bottom: 1px solid #1e293b; }
-    .dd-row { display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.4rem 0.75rem; border-bottom: 1px solid #0f172a; font-size: 0.68rem; }
+    #dd-full { margin-top: 0.6rem; background: #050505; border: 1px solid rgba(187,185,185,0.15); border-radius: 6px; overflow: hidden; }
+    .dd-header { padding: 0.4rem 0.75rem; font-size: 0.75rem; color: #888; border-bottom: 1px solid rgba(187,185,185,0.1); }
+    .dd-row { display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.4rem 0.75rem; border-bottom: 1px solid #0a0a0a; font-size: 0.7rem; }
     .dd-row:last-child { border-bottom: none; }
-    .dd-row-top { background: #0f1f2a; }
-    .dd-rank { color: #475569; font-weight: 700; min-width: 2rem; flex-shrink: 0; }
-    .dd-pct { color: #34d399; font-weight: 700; min-width: 3.5rem; flex-shrink: 0; }
-    .dd-teams { display: flex; flex-wrap: wrap; gap: 0.25rem 0.75rem; color: #64748b; }
+    .dd-row-top { background: #0e0e0e; }
+    .dd-rank { color: #888; font-weight: 700; min-width: 2rem; flex-shrink: 0; }
+    .dd-pct { color: #0076B6; font-weight: 700; min-width: 3.5rem; flex-shrink: 0; }
+    .dd-teams { display: flex; flex-wrap: wrap; gap: 0.25rem 0.75rem; color: #888; }
     .dd-pick { white-space: nowrap; }
 
     .spinner {
       display: inline-block;
       width: 10px; height: 10px;
-      border: 2px solid #334155;
-      border-top-color: #60a5fa;
+      border: 2px solid #1a1a1a;
+      border-top-color: #0076B6;
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
       margin-right: 6px;
@@ -144,20 +153,20 @@
 
     .stage-badge {
       display: inline-block;
-      font-size: 0.65rem;
+      font-size: 0.7rem;
       padding: 0.1rem 0.35rem;
       border-radius: 3px;
-      background: #1e293b;
-      color: #94a3b8;
+      background: #111;
+      color: #BBB9B9;
       margin-left: 0.5rem;
     }
 
     .team-name { cursor: pointer; user-select: none; }
-    .team-name .toggle { display: inline-block; width: 1rem; color: #334155; font-size: 0.65rem; transition: transform 0.15s; }
-    .team-name.expanded .toggle { transform: rotate(90deg); color: #60a5fa; }
+    .team-name .toggle { display: inline-block; width: 1rem; color: #333; font-size: 0.7rem; transition: transform 0.15s; }
+    .team-name.expanded .toggle { transform: rotate(90deg); color: #0076B6; }
     .team-name.expanded { color: #f8fafc; }
 
-    .detail-row td { background: #0a1628; border-bottom: 1px solid #1e293b; padding: 0; }
+    .detail-row td { background: #050505; border-bottom: 1px solid rgba(187,185,185,0.1); padding: 0; }
     .detail-row.hidden { display: none; }
     .detail-inner {
       display: flex;
@@ -170,26 +179,57 @@
       align-items: center;
       gap: 0.5rem;
       font-size: 0.75rem;
-      color: #94a3b8;
+      color: #888;
     }
     .detail-team-name { color: #cbd5e1; font-weight: 500; }
     .detail-stage {
-      font-size: 0.65rem;
+      font-size: 0.7rem;
       padding: 0.1rem 0.4rem;
       border-radius: 3px;
       font-weight: 600;
     }
-    .detail-goals { font-size: 0.65rem; color: #475569; }
+    .detail-goals { font-size: 0.7rem; color: #888; }
     .flag-img { width: 20px; height: 15px; border-radius: 2px; object-fit: cover; vertical-align: middle; }
-    .team-logo { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; vertical-align: middle; margin-right: 0.4rem; background: #1e293b; }
-    .team-logo-placeholder { display: inline-block; width: 22px; height: 22px; border-radius: 50%; background: #1e293b; vertical-align: middle; margin-right: 0.4rem; }
+    .team-logo { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; vertical-align: middle; margin-right: 0.4rem; background: #111; }
+    .team-logo-placeholder { display: inline-block; width: 22px; height: 22px; border-radius: 50%; background: #111; vertical-align: middle; margin-right: 0.4rem; }
+
+    @media (max-width: 480px) {
+      header { padding: 0.75rem 0.75rem 0.75rem calc(0.75rem - 6px); }
+      h1 { font-size: 1rem; }
+      .header-icon { width: 34px; height: 34px; font-size: 17px; }
+      .stat-box { padding: 4px 10px; }
+      .stat-box-value { font-size: 0.95rem; }
+      .controls { padding: 0.5rem 0.75rem; flex-direction: column; align-items: stretch; }
+      .controls button { width: 100%; }
+      #top-orders { padding: 0.75rem 0.75rem; }
+      .grid-wrapper { padding: 0.75rem 0.75rem; }
+      .legend { padding: 0.75rem; }
+      .legend-bar { width: 100px; }
+      .sim-info { padding: 0 0.75rem 1rem; }
+      .order-logo { width: 28px; height: 28px; }
+      .order-chip { min-width: 30px; padding: 4px 5px; }
+      .prob-cell { width: 50px; min-width: 50px; font-size: 0.68rem; }
+    }
   </style>
 </head>
 <body>
   <header>
-    <div>
-      <h1>⚽ WC 2026 Fantasy Draft Order</h1>
-      <div id="status"><span class="spinner"></span>Loading...</div>
+    <div class="header-main">
+      <div class="header-icon">⚽</div>
+      <div>
+        <h1>WC 2026 Fantasy Draft Order</h1>
+        <div id="status"><span class="spinner"></span>Loading...</div>
+      </div>
+    </div>
+    <div class="header-stats">
+      <div class="stat-box">
+        <div class="stat-box-value" id="stat-done">—</div>
+        <div class="stat-box-label">Done</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-box-value stat-left" id="stat-left">—</div>
+        <div class="stat-box-label">Left</div>
+      </div>
     </div>
   </header>
   <div class="controls">
@@ -204,7 +244,7 @@
     <span>0%</span>
     <div class="legend-bar" id="legend-bar"></div>
     <span>High %</span>
-    <span style="margin-left:1rem;color:#334155">· Darker = lower probability · Brighter = higher probability</span>
+    <span style="margin-left:1rem;color:#888">· Darker = lower probability · Brighter = higher probability</span>
   </div>
   <div class="sim-info" id="sim-info"></div>
 
@@ -767,11 +807,11 @@ function getBestEstimate(state) {
 
 // ─── HEAT MAP COLOR ─────────────────────────────────────────────────────────
 function heatColor(pct) {
-  // 0% → near-black, high% → bright teal/green
+  // 0% → near-black, high% → Detroit Lions blue (#0076B6)
   const t = Math.min(pct / 40, 1); // saturate at 40%
-  const r = Math.round(13  + t * (34 - 13));
-  const g = Math.round(27  + t * (197 - 27));
-  const b = Math.round(46  + t * (94 - 46));
+  const r = Math.round(5  + t * (0   - 5));
+  const g = Math.round(5  + t * (118 - 5));
+  const b = Math.round(15 + t * (182 - 15));
   const textOpacity = pct < 0.5 ? 0.25 : (0.4 + t * 0.6);
   return {
     bg: `rgb(${r},${g},${b})`,
@@ -1008,8 +1048,9 @@ async function refresh() {
 
     const now = new Date();
     const pendingGames = events.length - state.completedCount;
-    document.getElementById('status').textContent =
-      `Last updated: ${now.toLocaleTimeString()} · ${state.completedCount} of ${events.length} games completed · ${pendingGames} remaining`;
+    document.getElementById('status').textContent = `Last updated: ${now.toLocaleTimeString()} · ${state.completedCount} of ${events.length} games`;
+    document.getElementById('stat-done').textContent = state.completedCount;
+    document.getElementById('stat-left').textContent = pendingGames;
 
     // Warn about any unrecognized team names
     const knownTeams = new Set(Object.values(FANTASY_TEAMS).flat());
