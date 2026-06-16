@@ -110,6 +110,11 @@
     .order-pick-num { font-size: 0.65rem; color: #475569; font-weight: 700; }
     .order-logo { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
     .order-team-name { font-size: 0.65rem; color: #cbd5e1; font-weight: 500; text-align: center; white-space: normal; line-height: 1.2; }
+    .banner-toggle { display: flex; background: #0f172a; border-radius: 5px; overflow: hidden; border: 1px solid #1e293b; }
+    .banner-tab { background: transparent; color: #475569; border: none; padding: 0.2rem 0.65rem; font-size: 0.72rem; cursor: pointer; border-radius: 0; transition: background 0.15s, color 0.15s; }
+    .banner-tab:hover { color: #94a3b8; }
+    .banner-tab-active { background: #1e293b; color: #e2e8f0; }
+    .order-adp { font-size: 0.6rem; color: #475569; font-weight: 600; }
     .order-chip-locked { background: #0f2e1a; border: 1px solid #166534; }
     .order-chip-locked .order-pick-num { color: #4ade80; }
     .order-chip-locked .order-team-name { color: #86efac; }
@@ -719,14 +724,18 @@ function runMonteCarlo(state, N = 10000) {
   }
 
   const probs = {};
-  for (const t of teams) probs[t] = counts[t].map(c => (c / N) * 100);
+  const adp = {};
+  for (const t of teams) {
+    probs[t] = counts[t].map(c => (c / N) * 100);
+    adp[t] = counts[t].reduce((sum, c, i) => sum + c * (i + 1), 0) / N;
+  }
 
   const topOrders = Object.entries(orderCounts)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 10)
     .map(([key, cnt]) => ({ order: key.split('|'), pct: (cnt / N) * 100 }));
 
-  return { probs, topOrders };
+  return { probs, topOrders, adp };
 }
 
 // ─── CURRENT BEST ESTIMATE (deterministic) ──────────────────────────────────
@@ -773,18 +782,34 @@ function heatColor(pct) {
 // ─── TOP ORDERS RENDER ───────────────────────────────────────────────────────
 const LOCK_THRESHOLD = 99; // % — position is considered locked in
 
-function renderTopOrders(topOrders, probs) {
-  if (!topOrders || topOrders.length === 0) return;
-  const best = topOrders[0];
-  const chips = best.order.map((team, i) => {
-    const src = `assets/teams/${encodeURIComponent(team)}.png`;
-    const locked = probs && (probs[team]?.[i] ?? 0) >= LOCK_THRESHOLD;
-    return `<div class="order-chip ${locked ? 'order-chip-locked' : ''}">
-      <span class="order-pick-num">${i + 1}</span>
-      <img class="order-logo" src="${src}" alt="${team}" onerror="this.style.display='none'">
-      <span class="order-team-name">${team}</span>
-    </div>`;
-  }).join('');
+function renderTopOrders(topOrders, probs, adp) {
+  if (!topOrders || !adp) return;
+
+  const isAdp = orderBannerMode === 'adp';
+
+  let chips;
+  if (isAdp) {
+    const sorted = Object.keys(adp).sort((a, b) => adp[a] - adp[b]);
+    chips = sorted.map((team) => {
+      const src = `assets/teams/${encodeURIComponent(team)}.png`;
+      return `<div class="order-chip">
+        <span class="order-pick-num">${adp[team].toFixed(1)}</span>
+        <img class="order-logo" src="${src}" alt="${team}" onerror="this.style.display='none'">
+        <span class="order-team-name">${team}</span>
+      </div>`;
+    }).join('');
+  } else {
+    const best = topOrders[0];
+    chips = best.order.map((team, i) => {
+      const src = `assets/teams/${encodeURIComponent(team)}.png`;
+      const locked = probs && (probs[team]?.[i] ?? 0) >= LOCK_THRESHOLD;
+      return `<div class="order-chip ${locked ? 'order-chip-locked' : ''}">
+        <span class="order-pick-num">${i + 1}</span>
+        <img class="order-logo" src="${src}" alt="${team}" onerror="this.style.display='none'">
+        <span class="order-team-name">${team}</span>
+      </div>`;
+    }).join('');
+  }
 
   const total = topOrders.reduce((s, o) => s + o.pct, 0).toFixed(1);
   const rows = topOrders.map((o, i) => {
@@ -798,15 +823,19 @@ function renderTopOrders(topOrders, probs) {
 
   document.getElementById('top-orders').innerHTML = `
     <div class="top-order-header">
-      <span class="top-order-label">Most Likely Draft Order</span>
-      <span class="top-order-pct">${best.pct.toFixed(2)}%</span>
-      <button class="top-order-toggle" onclick="document.getElementById('dd-full').classList.toggle('hidden')">Top 10 ▾</button>
+      <span class="top-order-label">${isAdp ? 'Average Draft Position' : 'Most Common Draft Order'}</span>
+      ${!isAdp ? `<span class="top-order-pct">${topOrders[0].pct.toFixed(2)}%</span>` : ''}
+      <div class="banner-toggle">
+        <button class="banner-tab ${isAdp ? 'banner-tab-active' : ''}" onclick="orderBannerMode='adp'; renderTopOrders(lastTopOrders, lastProbs, lastAdp)">Avg Position</button>
+        <button class="banner-tab ${!isAdp ? 'banner-tab-active' : ''}" onclick="orderBannerMode='likely'; renderTopOrders(lastTopOrders, lastProbs, lastAdp)">Most Common</button>
+      </div>
+      ${!isAdp ? `<button class="top-order-toggle" onclick="document.getElementById('dd-full').classList.toggle('hidden')">Top 10 ▾</button>` : ''}
     </div>
     <div class="top-order-row">${chips}</div>
-    <div id="dd-full" class="hidden">
+    ${!isAdp ? `<div id="dd-full" class="hidden">
       <div class="dd-header">Top 10 most likely orderings · combined probability: <strong>${total}%</strong></div>
       ${rows}
-    </div>
+    </div>` : ''}
   `;
 }
 
@@ -847,7 +876,7 @@ function renderGrid(probs, currentEstimate, state, sortCol = currentSortCol) {
     th.addEventListener('click', () => {
       currentSortCol = parseInt(th.dataset.pick);
       if (lastProbs) renderGrid(lastProbs, lastEstimate, lastState, currentSortCol);
-      if (lastTopOrders) renderTopOrders(lastTopOrders, lastProbs);
+      if (lastTopOrders) renderTopOrders(lastTopOrders, lastProbs, lastAdp);
     });
   });
 
@@ -931,6 +960,8 @@ let refreshTimer = null;
 let isRunning = false;
 let lastProbs = null;
 let lastTopOrders = null;
+let lastAdp = null;
+let orderBannerMode = 'adp'; // 'adp' | 'likely'
 let lastEstimate = null;
 let lastState = null;
 let currentSortCol = null; // null = sort by peak pick, 0-15 = sort by that pick descending
@@ -964,14 +995,15 @@ async function refresh() {
     // Run simulation asynchronously so browser can update the status text
     await new Promise(resolve => setTimeout(resolve, 30));
 
-    const { probs, topOrders } = runMonteCarlo(state, 10000);
+    const { probs, topOrders, adp } = runMonteCarlo(state, 10000);
     const currentEstimate = getBestEstimate(state);
 
     lastProbs = probs;
     lastTopOrders = topOrders;
+    lastAdp = adp;
     lastEstimate = currentEstimate;
     lastState = state;
-    renderTopOrders(topOrders, probs);
+    renderTopOrders(topOrders, probs, adp);
     renderGrid(probs, currentEstimate, state, currentSortCol);
 
     const now = new Date();
