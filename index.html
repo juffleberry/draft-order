@@ -27,7 +27,7 @@
 
     .grid-wrapper { padding: 1.25rem 2rem; overflow-x: auto; }
 
-    table { border-collapse: collapse; font-size: 0.75rem; white-space: nowrap; }
+    table { border-collapse: separate; border-spacing: 0; font-size: 0.75rem; white-space: nowrap; }
 
     th {
       background: #0076B6;
@@ -35,7 +35,10 @@
       text-align: center;
       font-weight: 600;
       color: #ffffff;
-      border: 1px solid rgba(0,0,0,0.3);
+      border-top: 1px solid rgba(0,0,0,0.3);
+      border-right: 1px solid rgba(0,0,0,0.3);
+      border-bottom: 1px solid rgba(0,0,0,0.3);
+      position: -webkit-sticky;
       position: sticky;
       top: 0;
       z-index: 2;
@@ -43,9 +46,11 @@
     th.corner {
       text-align: left;
       color: rgba(255,255,255,0.85);
+      position: -webkit-sticky;
       position: sticky;
       left: 0;
       z-index: 3;
+      border-left: 1px solid rgba(0,0,0,0.3);
     }
 
     .team-name {
@@ -54,6 +59,7 @@
       color: #cbd5e1;
       font-weight: 500;
       background: #0a0a0a;
+      position: -webkit-sticky;
       position: sticky;
       left: 0;
       z-index: 1;
@@ -63,13 +69,14 @@
     tr:hover .team-name { color: #f8fafc; background: #0d0d0d; }
 
     .prob-cell {
-      width: 66px;
-      min-width: 66px;
+      width: 80px;
+      min-width: 80px;
       text-align: center;
       padding: 0.4rem 0.2rem;
       font-size: 0.75rem;
       font-weight: 600;
-      border: 1px solid rgba(0,0,0,0.25);
+      border-right: 1px solid rgba(0,0,0,0.25);
+      border-bottom: 1px solid rgba(0,0,0,0.25);
       cursor: default;
       transition: filter 0.1s;
     }
@@ -77,8 +84,9 @@
 
     th.sortable { cursor: pointer; }
     th.sortable:hover { color: #BBB9B9; }
-    th.sort-active { color: #BBB9B9; }
-    th.sort-active::after { content: ' ↓'; }
+    th.sortable::after { content: ' ↕'; opacity: 0.35; font-size: 0.65rem; }
+    th.sort-desc::after { content: ' ↓'; opacity: 1; font-size: 0.65rem; }
+    th.sort-asc::after { content: ' ↑'; opacity: 1; font-size: 0.65rem; }
 
     .legend {
       padding: 0.75rem 2rem;
@@ -108,21 +116,23 @@
     .error { color: #f87171; padding: 2rem; font-size: 0.9rem; }
 
     #top-orders { padding: 0.75rem 2rem; border-bottom: 1px solid rgba(187,185,185,0.2); }
-    .top-order-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; }
-    .top-order-label { font-size: 0.75rem; font-weight: 600; color: #BBB9B9; text-transform: uppercase; letter-spacing: 0.05em; }
-    .top-order-pct { font-size: 0.75rem; color: #0076B6; font-weight: 700; }
+    .top-order-header { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin-bottom: 0.5rem; }
+    .top-order-label { font-size: 0.75rem; font-weight: 600; color: #BBB9B9; text-transform: uppercase; letter-spacing: 0.05em; flex: 1 1 auto; }
+    .top-order-pct { font-size: 0.75rem; color: #0076B6; font-weight: 700; width: 100%; order: 10; padding-left: 0.1rem; }
     .top-order-toggle { background: #111; color: #BBB9B9; border: 1px solid rgba(187,185,185,0.2); padding: 0.2rem 0.6rem; border-radius: 4px; cursor: pointer; font-size: 0.75rem; }
     .top-order-toggle:hover { background: #1a1a1a; color: #e2e8f0; }
 
-    .top-order-row { display: flex; flex-wrap: nowrap; gap: 0; overflow-x: auto; padding-bottom: 0.5rem; }
-    .chip-spacer { flex-shrink: 0; display: flex; align-items: center; padding-right: 0.75rem; overflow: hidden; }
-    .chip-spacer-inner { display: flex; flex-direction: column; gap: 0.4rem; width: 100%; }
-    .chip-spacer-inner .top-order-label { white-space: normal; line-height: 1.2; }
-    .chip-spacer-inner .banner-toggle { align-self: flex-start; }
-    .order-chip { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; background: #111; border: 1px solid rgba(187,185,185,0.15); border-radius: 8px; padding: 0.5rem 0.6rem; white-space: nowrap; flex-shrink: 0; width: 66px; min-width: 66px; box-sizing: border-box; }
+    .top-order-row { display: flex; flex-wrap: nowrap; gap: 0; overflow-x: auto; padding-bottom: 0.5rem; align-items: stretch; }
+    .chip-spacer { flex-shrink: 0; display: flex; align-items: stretch; }
+    .sim-cost { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; gap: 0.25rem; text-align: center; padding: 0.4rem 0.5rem; border-right: 1px solid rgba(187,185,185,0.08); }
+    .sim-cost-label { font-size: 0.58rem; color: #555; text-transform: uppercase; letter-spacing: 0.08em; }
+    .sim-cost-val { font-size: 1rem; font-weight: 700; color: #4ade80; font-variant-numeric: tabular-nums; line-height: 1; }
+    .sim-cost-unit { font-size: 0.6rem; color: #4ade80; opacity: 0.7; }
+    .sim-cost-troll { font-size: 0.6rem; color: #444; font-style: italic; line-height: 1.3; margin-top: 0.15rem; }
+    .order-chip { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; background: #111; border: 1px solid rgba(187,185,185,0.15); border-radius: 8px; padding: 0.5rem 0.6rem; white-space: nowrap; flex-shrink: 0; width: 80px; min-width: 80px; box-sizing: border-box; }
     .order-pick-num { font-size: 0.7rem; color: #BBB9B9; font-weight: 700; }
     .order-logo { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
-    .order-team-name { font-size: 0.7rem; color: #cbd5e1; font-weight: 500; text-align: center; white-space: normal; line-height: 1.2; }
+    .order-team-name { font-size: 0.7rem; color: #cbd5e1; font-weight: 500; text-align: center; white-space: normal; line-height: 1.2; overflow-wrap: break-word; word-break: break-word; }
     .banner-toggle { display: flex; background: #0a0a0a; border-radius: 5px; overflow: hidden; border: 1px solid rgba(187,185,185,0.3); }
     .banner-tab { background: transparent; color: #888; border: none; padding: 0.2rem 0.65rem; font-size: 0.75rem; cursor: pointer; border-radius: 0; transition: background 0.15s, color 0.15s; }
     .banner-tab:hover { color: #BBB9B9; }
@@ -211,7 +221,8 @@
       .legend-bar { width: 100px; }
       .sim-info { padding: 0 0.75rem 1rem; }
       .order-logo { width: 28px; height: 28px; }
-      .order-chip { min-width: 30px; padding: 4px 5px; }
+      .order-chip { width: 62px; min-width: 62px; padding: 4px 5px; }
+      .prob-cell { width: 62px; min-width: 62px; }
       .prob-cell { width: 50px; min-width: 50px; font-size: 0.68rem; }
     }
   </style>
@@ -866,30 +877,25 @@ function renderTopOrders(topOrders, probs, adp) {
   }).join('');
 
   document.getElementById('top-orders').innerHTML = `
-    <div class="top-order-row" id="chip-row">
-      <div class="chip-spacer" id="chip-spacer">
-        <div class="chip-spacer-inner">
-          <span class="top-order-label">${isAdp ? 'Average Draft Position' : 'Most Common Draft Order'}</span>
-          <div style="display:flex;align-items:center;gap:0.5rem;">
-            <div class="banner-toggle">
-              <button class="banner-tab ${isAdp ? 'banner-tab-active' : ''}" onclick="orderBannerMode='adp'; renderTopOrders(lastTopOrders, lastProbs, lastAdp); syncChipSpacer()">Avg</button>
-              <button class="banner-tab ${!isAdp ? 'banner-tab-active' : ''}" onclick="orderBannerMode='likely'; renderTopOrders(lastTopOrders, lastProbs, lastAdp); syncChipSpacer()">Most Common</button>
-            </div>
-            ${!isAdp ? `<span class="top-order-pct">${topOrders[0].pct.toFixed(2)}%</span>` : ''}
-          </div>
-        </div>
+    <div class="top-order-header">
+      <span class="top-order-label">${isAdp ? 'Average Draft Position' : 'Most Common Draft Order'}</span>
+      <div class="banner-toggle">
+        <button class="banner-tab ${isAdp ? 'banner-tab-active' : ''}" onclick="orderBannerMode='adp'; renderTopOrders(lastTopOrders, lastProbs, lastAdp); if(lastProbs) renderGrid(lastProbs, lastEstimate, lastState, currentSortCol); syncChipSpacer()">Avg Position</button>
+        <button class="banner-tab ${!isAdp ? 'banner-tab-active' : ''}" onclick="orderBannerMode='likely'; renderTopOrders(lastTopOrders, lastProbs, lastAdp); if(lastProbs) renderGrid(lastProbs, lastEstimate, lastState, currentSortCol); syncChipSpacer()">Most Common</button>
       </div>
+      ${!isAdp ? `<span class="top-order-pct">${topOrders[0].pct.toFixed(2)}%</span>` : ''}
+      ${!isAdp ? `<button class="top-order-toggle" onclick="document.getElementById('dd-full').classList.toggle('hidden')">Top 10 ▾</button>` : ''}
+    </div>
+    <div class="top-order-row" id="chip-row">
+      <div class="chip-spacer" id="chip-spacer"><div class="sim-cost" id="sim-cost"></div></div>
       ${chips}
     </div>
     ${!isAdp ? `<div id="dd-full" class="hidden">
-      <div class="dd-header" style="display:flex;align-items:center;justify-content:space-between;">
-        <span>Top 10 most likely orderings · combined probability: <strong>${total}%</strong></span>
-        <button class="top-order-toggle" onclick="document.getElementById('dd-full').classList.toggle('hidden')">Hide ✕</button>
-      </div>
+      <div class="dd-header">Top 10 most likely orderings · combined probability: <strong>${total}%</strong></div>
       ${rows}
-    </div>
-    <button class="top-order-toggle" style="margin-top:0.4rem;" onclick="document.getElementById('dd-full').classList.toggle('hidden')">Top 10 ▾</button>` : ''}
+    </div>` : ''}
   `;
+  renderSimCost();
 }
 
 // ─── RENDER ──────────────────────────────────────────────────────────────────
@@ -912,22 +918,32 @@ function renderGrid(probs, currentEstimate, state, sortCol = currentSortCol) {
   const wcTeamStage = { ...state.knockoutEliminated };
 
   const fantasyTeams = Object.keys(FANTASY_TEAMS);
-  const sortedTeams = sortTeams(fantasyTeams, probs, sortCol);
+  const sortedTeams = sortTeams(fantasyTeams, probs, sortCol, lastAdp);
 
   // Header
   const hr = document.createElement('tr');
   const cornerTh = `<th class="corner">Fantasy Team</th>`;
   const pickThs = Array.from({ length: 16 }, (_, i) => {
-    const active = sortCol === i ? 'sort-active' : '';
-    return `<th class="sortable ${active}" data-pick="${i}">Pick ${i + 1}</th>`;
+    let cls = 'sortable';
+    if (sortCol === i) cls += currentSortDir === 'asc' ? ' sort-asc' : ' sort-desc';
+    return `<th class="${cls}" data-pick="${i}">Pick ${i + 1}</th>`;
   }).join('');
   hr.innerHTML = cornerTh + pickThs;
   table.appendChild(hr);
 
-  // Column header click → sort by that pick
+  // Column header click → cycle: desc → asc → default
   hr.querySelectorAll('th.sortable').forEach(th => {
     th.addEventListener('click', () => {
-      currentSortCol = parseInt(th.dataset.pick);
+      const col = parseInt(th.dataset.pick);
+      if (currentSortCol !== col) {
+        currentSortCol = col;
+        currentSortDir = 'desc';
+      } else if (currentSortDir === 'desc') {
+        currentSortDir = 'asc';
+      } else {
+        currentSortCol = null;
+        currentSortDir = null;
+      }
       if (lastProbs) renderGrid(lastProbs, lastEstimate, lastState, currentSortCol);
       if (lastTopOrders) renderTopOrders(lastTopOrders, lastProbs, lastAdp);
       syncChipSpacer();
@@ -1009,6 +1025,48 @@ function buildLegend() {
   bar.innerHTML = html;
 }
 
+// ─── SIM COST TRACKER ───────────────────────────────────────────────────────
+let lastSimCO2ug = null; // micrograms
+
+const TROLL_LINES = [
+  'you monster',
+  'worth it?',
+  'rip atmosphere',
+  'polar bears felt that',
+  'Al Gore is crying',
+  'nice going, champ',
+  'the ice caps know',
+  'earth says ouch',
+  'climate criminal',
+  'greta is watching',
+];
+
+function calcSimCO2(durationMs) {
+  // Assumes ~15W CPU draw during heavy JS, US grid at 386 gCO2/kWh
+  const energyKwh = (durationMs / 1000) * 15 / 3_600_000;
+  return energyKwh * 386 * 1e6; // micrograms
+}
+
+function renderSimCost() {
+  const el = document.getElementById('sim-cost');
+  if (!el) return;
+  if (lastSimCO2ug === null) {
+    el.innerHTML = `<span class="sim-cost-label">sim cost</span>
+      <span class="sim-cost-val">—</span>
+      <span class="sim-cost-troll">loading...</span>`;
+    return;
+  }
+  let val, unit;
+  if (lastSimCO2ug < 1000) { val = lastSimCO2ug.toFixed(1); unit = 'μg CO₂'; }
+  else { val = (lastSimCO2ug / 1000).toFixed(2); unit = 'mg CO₂'; }
+  const troll = TROLL_LINES[Math.floor(Math.random() * TROLL_LINES.length)];
+  el.innerHTML = `
+    <span class="sim-cost-label">per refresh</span>
+    <span class="sim-cost-val">${val}</span>
+    <span class="sim-cost-unit">${unit}</span>
+    <span class="sim-cost-troll">${troll}</span>`;
+}
+
 function syncChipSpacer() {
   const spacer = document.getElementById('chip-spacer');
   const chipRow = document.getElementById('chip-row');
@@ -1027,14 +1085,20 @@ let lastAdp = null;
 let orderBannerMode = 'adp'; // 'adp' | 'likely'
 let lastEstimate = null;
 let lastState = null;
-let currentSortCol = null; // null = sort by peak pick, 0-15 = sort by that pick descending
+let currentSortCol = null; // null = default sort, 0-15 = sort by that pick
+let currentSortDir = null; // null = default, 'desc' = high→low, 'asc' = low→high
 
-function sortTeams(fantasyTeams, probs, sortCol) {
+function sortTeams(fantasyTeams, probs, sortCol, adp) {
   return [...fantasyTeams].sort((a, b) => {
     if (sortCol !== null) {
-      return probs[b][sortCol] - probs[a][sortCol];
+      return currentSortDir === 'asc'
+        ? probs[a][sortCol] - probs[b][sortCol]
+        : probs[b][sortCol] - probs[a][sortCol];
     }
-    // Default: sort by the pick index where each team has their highest probability
+    // Default: follow active banner mode
+    if (orderBannerMode === 'adp' && adp) {
+      return (adp[a] ?? 99) - (adp[b] ?? 99);
+    }
     const bestPickA = probs[a].indexOf(Math.max(...probs[a]));
     const bestPickB = probs[b].indexOf(Math.max(...probs[b]));
     return bestPickA - bestPickB;
@@ -1058,7 +1122,9 @@ async function refresh() {
     // Run simulation asynchronously so browser can update the status text
     await new Promise(resolve => setTimeout(resolve, 30));
 
+    const t0 = performance.now();
     const { probs, topOrders, adp } = runMonteCarlo(state, 10000);
+    lastSimCO2ug = calcSimCO2(performance.now() - t0);
     const currentEstimate = getBestEstimate(state);
 
     lastProbs = probs;
