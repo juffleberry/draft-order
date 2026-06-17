@@ -114,8 +114,9 @@
     .top-order-toggle { background: #111; color: #BBB9B9; border: 1px solid rgba(187,185,185,0.2); padding: 0.2rem 0.6rem; border-radius: 4px; cursor: pointer; font-size: 0.75rem; }
     .top-order-toggle:hover { background: #1a1a1a; color: #e2e8f0; }
 
-    .top-order-row { display: flex; flex-wrap: nowrap; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.5rem; }
-    .order-chip { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; background: #111; border: 1px solid rgba(187,185,185,0.15); border-radius: 8px; padding: 0.5rem 0.6rem; white-space: nowrap; flex-shrink: 0; min-width: 36px; }
+    .top-order-row { display: flex; flex-wrap: nowrap; gap: 0; overflow-x: auto; padding-bottom: 0.5rem; }
+    .chip-spacer { flex-shrink: 0; }
+    .order-chip { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; background: #111; border: 1px solid rgba(187,185,185,0.15); border-radius: 8px; padding: 0.5rem 0.6rem; white-space: nowrap; flex-shrink: 0; width: 66px; min-width: 66px; box-sizing: border-box; }
     .order-pick-num { font-size: 0.7rem; color: #BBB9B9; font-weight: 700; }
     .order-logo { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
     .order-team-name { font-size: 0.7rem; color: #cbd5e1; font-weight: 500; text-align: center; white-space: normal; line-height: 1.2; }
@@ -866,12 +867,12 @@ function renderTopOrders(topOrders, probs, adp) {
       <span class="top-order-label">${isAdp ? 'Average Draft Position' : 'Most Common Draft Order'}</span>
       ${!isAdp ? `<span class="top-order-pct">${topOrders[0].pct.toFixed(2)}%</span>` : ''}
       <div class="banner-toggle">
-        <button class="banner-tab ${isAdp ? 'banner-tab-active' : ''}" onclick="orderBannerMode='adp'; renderTopOrders(lastTopOrders, lastProbs, lastAdp)">Avg Position</button>
-        <button class="banner-tab ${!isAdp ? 'banner-tab-active' : ''}" onclick="orderBannerMode='likely'; renderTopOrders(lastTopOrders, lastProbs, lastAdp)">Most Common</button>
+        <button class="banner-tab ${isAdp ? 'banner-tab-active' : ''}" onclick="orderBannerMode='adp'; renderTopOrders(lastTopOrders, lastProbs, lastAdp); syncChipSpacer()">Avg Position</button>
+        <button class="banner-tab ${!isAdp ? 'banner-tab-active' : ''}" onclick="orderBannerMode='likely'; renderTopOrders(lastTopOrders, lastProbs, lastAdp); syncChipSpacer()">Most Common</button>
       </div>
       ${!isAdp ? `<button class="top-order-toggle" onclick="document.getElementById('dd-full').classList.toggle('hidden')">Top 10 ▾</button>` : ''}
     </div>
-    <div class="top-order-row">${chips}</div>
+    <div class="top-order-row" id="chip-row"><div class="chip-spacer" id="chip-spacer"></div>${chips}</div>
     ${!isAdp ? `<div id="dd-full" class="hidden">
       <div class="dd-header">Top 10 most likely orderings · combined probability: <strong>${total}%</strong></div>
       ${rows}
@@ -917,6 +918,7 @@ function renderGrid(probs, currentEstimate, state, sortCol = currentSortCol) {
       currentSortCol = parseInt(th.dataset.pick);
       if (lastProbs) renderGrid(lastProbs, lastEstimate, lastState, currentSortCol);
       if (lastTopOrders) renderTopOrders(lastTopOrders, lastProbs, lastAdp);
+      syncChipSpacer();
     });
   });
 
@@ -995,6 +997,15 @@ function buildLegend() {
   bar.innerHTML = html;
 }
 
+function syncChipSpacer() {
+  const spacer = document.getElementById('chip-spacer');
+  const chipRow = document.getElementById('chip-row');
+  const firstProbCell = document.querySelector('#grid .prob-cell');
+  if (spacer && chipRow && firstProbCell) {
+    spacer.style.width = Math.max(0, firstProbCell.getBoundingClientRect().left - chipRow.getBoundingClientRect().left) + 'px';
+  }
+}
+
 // ─── MAIN ────────────────────────────────────────────────────────────────────
 let refreshTimer = null;
 let isRunning = false;
@@ -1045,6 +1056,7 @@ async function refresh() {
     lastState = state;
     renderTopOrders(topOrders, probs, adp);
     renderGrid(probs, currentEstimate, state, currentSortCol);
+    syncChipSpacer();
 
     const now = new Date();
     const pendingGames = events.length - state.completedCount;
@@ -1083,6 +1095,7 @@ async function refresh() {
 
 buildLegend();
 refresh();
+window.addEventListener('resize', syncChipSpacer);
 </script>
 </body>
 </html>
