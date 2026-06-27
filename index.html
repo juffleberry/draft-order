@@ -62,7 +62,7 @@
     }
 
     .team-name {
-      padding: 0.4rem 0.6rem;
+      padding: 0.4rem 0.45rem;
       white-space: nowrap;
       color: #cbd5e1;
       font-weight: 500;
@@ -173,7 +173,7 @@
     .order-chip { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; background: #111; border: 1px solid rgba(187,185,185,0.15); border-radius: 8px; padding: 0.5rem 0.6rem; white-space: nowrap; flex-shrink: 0; width: 80px; min-width: 80px; box-sizing: border-box; }
     .order-pick-num { font-size: 0.7rem; color: #BBB9B9; font-weight: 700; }
     .order-logo { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
-    .order-team-name { font-size: 0.7rem; color: #cbd5e1; font-weight: 500; text-align: center; white-space: normal; line-height: 1.2; overflow-wrap: break-word; word-break: break-word; }
+    .order-team-name { font-size: 0.58rem; color: #cbd5e1; font-weight: 500; text-align: center; white-space: nowrap; line-height: 1.2; }
     .banner-toggle { display: flex; background: #0a0a0a; border-radius: 5px; overflow: hidden; border: 1px solid rgba(187,185,185,0.3); }
     .banner-tab { background: transparent; color: #888; border: none; padding: 0.2rem 0.65rem; font-size: 0.75rem; cursor: pointer; border-radius: 0; transition: background 0.15s, color 0.15s; }
     .banner-tab:hover { color: #BBB9B9; }
@@ -182,6 +182,14 @@
     .order-chip-locked { background: #0f2e1a; border: 1px solid #166534; }
     .order-chip-locked .order-pick-num { color: #4ade80; }
     .order-chip-locked .order-team-name { color: #86efac; }
+    .score-card { width: 100%; margin-top: 0.35rem; padding-top: 0.3rem; border-top: 1px solid rgba(187,185,185,0.15); display: flex; flex-direction: column; gap: 1px; }
+    .score-row { display: flex; justify-content: space-between; align-items: baseline; font-size: 0.58rem; line-height: 1.35; color: #94a3b8; }
+    .score-row .sv { color: #e2e8f0; font-weight: 700; }
+    .score-row.score-zero { color: #475569; }
+    .score-row.score-zero .sv { color: #475569; }
+    .score-row.score-goals { color: #8aa0b8; }
+    .score-row.score-goals .sv { color: #cbd5e1; }
+    .score-div { height: 1px; background: rgba(187,185,185,0.15); margin: 2px 0; }
 
     .hidden { display: none !important; }
     #dd-full { margin-top: 0.6rem; background: #050505; border: 1px solid rgba(187,185,185,0.15); border-radius: 6px; overflow: hidden; }
@@ -247,8 +255,8 @@
     .flag-img { width: 20px; height: 15px; border-radius: 2px; object-fit: cover; vertical-align: middle; }
     .detail-team.eliminated .flag-img { filter: grayscale(1); opacity: 0.5; }
     .detail-team.eliminated .detail-team-name { color: #94a3b8; text-decoration: line-through; text-decoration-color: #475569; }
-    .team-logo { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; vertical-align: middle; margin-right: 0.4rem; background: #111; }
-    .team-logo-placeholder { display: inline-block; width: 22px; height: 22px; border-radius: 50%; background: #111; vertical-align: middle; margin-right: 0.4rem; }
+    .team-logo { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; vertical-align: middle; margin-right: 0.3rem; background: #111; }
+    .team-logo-placeholder { display: inline-block; width: 22px; height: 22px; border-radius: 50%; background: #111; vertical-align: middle; margin-right: 0.3rem; }
 
     @media (max-width: 480px) {
       header { padding: 0.75rem 0.75rem 0.75rem calc(0.75rem - 6px); }
@@ -265,6 +273,7 @@
       .sim-info { padding: 0 0.75rem 1rem; }
       .order-logo { width: 28px; height: 28px; }
       .order-chip { width: 62px; min-width: 62px; padding: 4px 5px; }
+      .score-row { font-size: 0.55rem; }
       .prob-cell { width: 62px; min-width: 62px; }
       .prob-cell { width: 50px; min-width: 50px; font-size: 0.68rem; }
     }
@@ -951,6 +960,47 @@ function heatColor(pct) {
 // ─── TOP ORDERS RENDER ───────────────────────────────────────────────────────
 const LOCK_THRESHOLD = 99; // % — position is considered locked in
 
+// Scorecard rows in display order, each mapped to the STAGE enum value that counts
+// toward it. Only teams with a FINALISED placement are counted — a team that is
+// still alive (no settled stage) contributes to no bucket until it's eliminated or
+// wins the tournament. (There's no 'SF' row: semifinal losers always finish 3rd or
+// 4th via the third-place match, so it would be redundant.)
+const SCORE_STAGES = [
+  ['1st', STAGE.WINNER], ['2nd', STAGE.RUNNER_UP], ['3rd', STAGE.SF_WON_3RD], ['4th', STAGE.SF_LOST_3RD],
+  ['QF', STAGE.QF_ELIMINATED], ['R16', STAGE.R16_ELIMINATED], ['R32', STAGE.R32_ELIMINATED],
+  ['G', STAGE.GROUP_ELIMINATED],
+];
+
+// Live (not simulated) scorecard for one fantasy team: how many of its 3 WC teams
+// have finalised at each stage, plus cumulative goals for / against.
+function teamScorecard(team, state, wcTeamStage) {
+  const byStage = {}; // STAGE value -> count of this team's WC teams settled there
+  let gf = 0, ga = 0;
+  for (const wc of FANTASY_TEAMS[team]) {
+    const s = wcTeamStage[wc];
+    if (s !== undefined) byStage[s] = (byStage[s] || 0) + 1;
+    gf += state.allTeamStats[wc]?.gf || 0;
+    ga += state.allTeamStats[wc]?.ga || 0;
+  }
+  return { byStage, gf, ga };
+}
+
+function scorecardHtml(team) {
+  if (!lastState) return '';
+  const wcTeamStage = lastWcTeamStage || computeWcTeamStage(lastState);
+  const { byStage, gf, ga } = teamScorecard(team, lastState, wcTeamStage);
+  const rows = SCORE_STAGES.map(([label, stage]) => {
+    const n = byStage[stage] || 0;
+    return `<div class="score-row${n === 0 ? ' score-zero' : ''}"><span>${label}</span><span class="sv">${n === 0 ? '-' : n}</span></div>`;
+  }).join('');
+  return `<div class="score-card">
+    ${rows}
+    <div class="score-div"></div>
+    <div class="score-row score-goals"><span>GF</span><span class="sv">${gf}</span></div>
+    <div class="score-row score-goals"><span>GA</span><span class="sv">${ga}</span></div>
+  </div>`;
+}
+
 function renderTopOrders(topOrders, probs, adp) {
   if (!topOrders || !adp) return;
 
@@ -965,6 +1015,7 @@ function renderTopOrders(topOrders, probs, adp) {
         <span class="order-pick-num">${adp[team].toFixed(1)}</span>
         <img class="order-logo" src="${src}" alt="${team}" onerror="this.style.display='none'">
         <span class="order-team-name">${team}</span>
+        ${scorecardHtml(team)}
       </div>`;
     }).join('');
   } else {
@@ -976,6 +1027,7 @@ function renderTopOrders(topOrders, probs, adp) {
         <span class="order-pick-num">${i + 1}</span>
         <img class="order-logo" src="${src}" alt="${team}" onerror="this.style.display='none'">
         <span class="order-team-name">${team}</span>
+        ${scorecardHtml(team)}
       </div>`;
     }).join('');
   }
@@ -1069,13 +1121,11 @@ function computeFinalRanks(state, wcTeamStage) {
   return rank;
 }
 
-function renderGrid(probs, currentEstimate, state, sortCol = currentSortCol) {
-  const table = document.getElementById('grid');
-  table.innerHTML = '';
-
-  // Build per-WC-team stage from state: knockout exits plus group-stage teams that
-  // are mathematically out — 4th in a completed group, or a 3rd-place team out of
-  // contention for the 8 best-third berths.
+// Per-WC-team SETTLED stage from current results: knockout exits plus group-stage
+// teams that are mathematically out — 4th in a completed group, or a 3rd-place team
+// out of contention for the 8 best-third berths. A team with no entry here is still
+// alive (its final placement isn't decided yet).
+function computeWcTeamStage(state) {
   const wcTeamStage = { ...state.knockoutEliminated };
   const completedThirds = []; // { team, pts, gd, gf } from fully-played groups
   for (const [group, teamSet] of Object.entries(state.groupTeams)) {
@@ -1097,7 +1147,14 @@ function renderGrid(probs, currentEstimate, state, sortCol = currentSortCol) {
     const better = completedThirds.filter(o => o.team !== t.team && thirdBetter(o, t)).length;
     if (better >= 8 && wcTeamStage[t.team] === undefined) wcTeamStage[t.team] = STAGE.GROUP_ELIMINATED;
   }
+  return wcTeamStage;
+}
 
+function renderGrid(probs, currentEstimate, state, sortCol = currentSortCol) {
+  const table = document.getElementById('grid');
+  table.innerHTML = '';
+
+  const wcTeamStage = computeWcTeamStage(state);
   const finalRanks = computeFinalRanks(state, wcTeamStage);
 
   const fantasyTeams = Object.keys(FANTASY_TEAMS);
@@ -1277,6 +1334,7 @@ let lastAdp = null;
 let orderBannerMode = 'adp'; // 'adp' | 'likely'
 let lastEstimate = null;
 let lastState = null;
+let lastWcTeamStage = null; // settled per-WC-team stages for the current state (scorecards)
 let currentSortCol = null; // 0-15 = sort by that pick, null = unsorted (allocation order)
 let currentSortDir = null; // 'desc' = high→low, 'asc' = low→high, null = unsorted
 
@@ -1341,6 +1399,7 @@ async function refresh() {
     lastAdp = adp;
     lastEstimate = currentEstimate;
     lastState = state;
+    lastWcTeamStage = computeWcTeamStage(state);
     renderTopOrders(topOrders, probs, adp);
     renderGrid(probs, currentEstimate, state, currentSortCol);
     syncChipSpacer();
