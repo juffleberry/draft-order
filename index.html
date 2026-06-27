@@ -245,6 +245,8 @@
     }
     .detail-goals { font-size: 0.7rem; color: #888; }
     .flag-img { width: 20px; height: 15px; border-radius: 2px; object-fit: cover; vertical-align: middle; }
+    .detail-team.eliminated .flag-img { filter: grayscale(1); opacity: 0.5; }
+    .detail-team.eliminated .detail-team-name { color: #94a3b8; text-decoration: line-through; text-decoration-color: #475569; }
     .team-logo { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; vertical-align: middle; margin-right: 0.4rem; background: #111; }
     .team-logo-placeholder { display: inline-block; width: 22px; height: 22px; border-radius: 50%; background: #111; vertical-align: middle; margin-right: 0.4rem; }
 
@@ -1021,12 +1023,82 @@ const STAGE_STYLE = {
   7: { bg: '#2a2410', color: '#fcd34d', label: 'Winner' },
 };
 
+function ordinal(n) {
+  const s = ['th', 'st', 'nd', 'rd'], v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
+// Overall finish-rank (1 = best) for every WC team given the current results.
+// Knockout/finished teams rank above all group-stage teams; within the group tier
+// teams are ordered by points, then goal difference, then goals scored. Eliminated
+// teams read their rank off this table; it refines as more results come in.
+function computeFinalRanks(state, wcTeamStage) {
+  const teams = new Set();
+  for (const set of Object.values(state.groupTeams)) for (const t of set) teams.add(t);
+  const gpts = {};
+  for (const st of Object.values(state.groupStandings)) for (const [t, s] of Object.entries(st)) gpts[t] = s.pts;
+  // Finishing position within the group (0 = 1st … 3 = 4th). Within the group tier
+  // this is the primary key, so every 3rd-place team outranks every 4th-place team.
+  const groupPos = {};
+  for (const [g, teamSet] of Object.entries(state.groupTeams)) {
+    sortGroup([...teamSet], state.groupStandings[g] || {}).forEach((t, i) => { groupPos[t] = i; });
+  }
+  const alive = state.knockoutAlive || new Set();
+  const tierOf = t => {
+    if (wcTeamStage[t] !== undefined) return wcTeamStage[t]; // 0 group-out … 7 winner
+    if (alive.has && alive.has(t)) return 1.5;               // won a KO game, still alive
+    return 0;                                                // alive, still group stage
+  };
+  const arr = [...teams].map(t => {
+    const s = state.allTeamStats[t] || { gf: 0, ga: 0 };
+    return { t, tier: tierOf(t), pos: groupPos[t] ?? 3, pts: gpts[t] ?? 0, gd: s.gf - s.ga, gf: s.gf, ga: s.ga };
+  });
+  arr.sort((a, b) => {
+    if (a.tier !== b.tier) return b.tier - a.tier;
+    if (a.tier === 0) {                                        // group tier: position first…
+      if (a.pos !== b.pos) return a.pos - b.pos;
+      if (a.pts !== b.pts) return b.pts - a.pts;               // …then points
+    }
+    if (a.gd !== b.gd) return b.gd - a.gd;
+    if (a.gf !== b.gf) return b.gf - a.gf;
+    if (a.ga !== b.ga) return a.ga - b.ga;
+    return a.t < b.t ? -1 : 1;
+  });
+  const rank = {};
+  arr.forEach((x, i) => { rank[x.t] = i + 1; });
+  return rank;
+}
+
 function renderGrid(probs, currentEstimate, state, sortCol = currentSortCol) {
   const table = document.getElementById('grid');
   table.innerHTML = '';
 
-  // Build per-WC-team stage from state
+  // Build per-WC-team stage from state: knockout exits plus group-stage teams that
+  // are mathematically out — 4th in a completed group, or a 3rd-place team out of
+  // contention for the 8 best-third berths.
   const wcTeamStage = { ...state.knockoutEliminated };
+  const completedThirds = []; // { team, pts, gd, gf } from fully-played groups
+  for (const [group, teamSet] of Object.entries(state.groupTeams)) {
+    const gs = state.groupStandings[group] || {};
+    const allPlayed = [...teamSet].every(t => (gs[t]?.gp ?? 0) >= 3);
+    if (!allPlayed) continue;
+    const sorted = sortGroup([...teamSet], gs);
+    if (sorted[3] && wcTeamStage[sorted[3]] === undefined) wcTeamStage[sorted[3]] = STAGE.GROUP_ELIMINATED;
+    if (sorted[2]) {
+      const s = gs[sorted[2]] || { pts: 0, gf: 0, ga: 0 };
+      completedThirds.push({ team: sorted[2], pts: s.pts, gd: s.gf - s.ga, gf: s.gf });
+    }
+  }
+  // A 3rd-place team is out of contention once 8+ completed-group thirds rank
+  // strictly above it (only 8 thirds advance), regardless of unfinished groups.
+  const thirdBetter = (a, b) =>
+    a.pts !== b.pts ? a.pts > b.pts : a.gd !== b.gd ? a.gd > b.gd : a.gf > b.gf;
+  for (const t of completedThirds) {
+    const better = completedThirds.filter(o => o.team !== t.team && thirdBetter(o, t)).length;
+    if (better >= 8 && wcTeamStage[t.team] === undefined) wcTeamStage[t.team] = STAGE.GROUP_ELIMINATED;
+  }
+
+  const finalRanks = computeFinalRanks(state, wcTeamStage);
 
   const fantasyTeams = Object.keys(FANTASY_TEAMS);
   const sortedTeams = sortTeams(fantasyTeams, probs, sortCol, lastAdp);
@@ -1099,15 +1171,23 @@ function renderGrid(probs, currentEstimate, state, sortCol = currentSortCol) {
 
     for (const wc of wcTeams) {
       const s = wcTeamStage[wc];
-      const style = s !== undefined ? STAGE_STYLE[s] : { bg: '#1e293b', color: '#64748b', label: 'In Progress' };
+      const settled = s !== undefined;            // out of the tournament (or finished)
+      const style = settled ? STAGE_STYLE[s] : { bg: '#1e293b', color: '#64748b', label: 'In Progress' };
+      // Eliminated = has a final stage and isn't the tournament winner.
+      const eliminated = settled && s !== STAGE.WINNER;
       const gf = state.allTeamStats[wc]?.gf ?? 0;
       const ga = state.allTeamStats[wc]?.ga ?? 0;
+      // Eliminated teams show their current overall finish rank instead of the
+      // round they exited; the round label moves to a hover tooltip.
+      const rank = finalRanks[wc];
+      const label = settled && rank ? ordinal(rank) : style.label;
+      const title = settled ? `${style.label} · current projected finish` : 'Still in the tournament';
 
       inner.innerHTML += `
-        <div class="detail-team">
+        <div class="detail-team${eliminated ? ' eliminated' : ''}">
           ${flagImg(wc)}
           <span class="detail-team-name">${wc}</span>
-          <span class="detail-stage" style="background:${style.bg};color:${style.color}">${style.label}</span>
+          <span class="detail-stage" style="background:${style.bg};color:${style.color}" title="${title}">${label}</span>
           <span class="detail-goals">${gf} GF · ${ga} GA</span>
         </div>`;
     }
