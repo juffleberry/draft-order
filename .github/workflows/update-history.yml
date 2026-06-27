@@ -2,7 +2,7 @@ name: Update history data
 
 on:
   schedule:
-    - cron: '0 */3 * * *'   # every 3 hours (UTC)
+    - cron: '*/15 * * * *'   # every 15 minutes (UTC)
   workflow_dispatch:          # allow manual runs from the Actions tab
 
 # Allow the job to commit the regenerated data file back to the repo
