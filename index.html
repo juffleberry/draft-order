@@ -179,9 +179,11 @@
     .banner-tab:hover { color: #BBB9B9; }
     .banner-tab-active { background: #0076B6; color: #ffffff; }
     .order-adp { font-size: 0.7rem; color: #888; font-weight: 600; }
-    .order-chip-locked { background: #0f2e1a; border: 1px solid #166534; }
-    .order-chip-locked .order-pick-num { color: #4ade80; }
-    .order-chip-locked .order-team-name { color: #86efac; }
+    .order-chip-locked { background: #06141f; border: 1px solid #0076B6; }
+    .order-chip-locked .order-pick-num { color: #4da3d4; }
+    .order-chip-locked .order-team-name { color: #7fbfe0; }
+    .order-logo-wrap { position: relative; display: inline-block; line-height: 0; }
+    .order-chip-locked .order-logo-wrap::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: #0076B6; mix-blend-mode: multiply; opacity: 0.5; pointer-events: none; }
     .score-card { width: 100%; margin-top: 0.35rem; padding-top: 0.3rem; border-top: 1px solid rgba(187,185,185,0.15); display: flex; flex-direction: column; gap: 1px; }
     .score-row { display: flex; justify-content: space-between; align-items: baseline; font-size: 0.58rem; line-height: 1.35; color: #94a3b8; }
     .score-row .sv { color: #e2e8f0; font-weight: 700; }
@@ -1072,9 +1074,10 @@ function renderTopOrders(topOrders, probs, adp) {
     const sorted = Object.keys(adp).sort((a, b) => adp[a] - adp[b]);
     chips = sorted.map((team) => {
       const src = `assets/teams/${encodeURIComponent(team)}.png`;
-      return `<div class="order-chip">
+      const locked = probs && Math.max(...(probs[team] || [0])) >= LOCK_THRESHOLD;
+      return `<div class="order-chip ${locked ? 'order-chip-locked' : ''}">
         <span class="order-pick-num">${adp[team].toFixed(1)}</span>
-        <img class="order-logo" src="${src}" alt="${team}" onerror="this.style.display='none'">
+        <span class="order-logo-wrap"><img class="order-logo" src="${src}" alt="${team}" onerror="this.parentElement.style.display='none'"></span>
         <span class="order-team-name">${team}</span>
         ${scorecardHtml(team)}
       </div>`;
@@ -1086,7 +1089,7 @@ function renderTopOrders(topOrders, probs, adp) {
       const locked = probs && (probs[team]?.[i] ?? 0) >= LOCK_THRESHOLD;
       return `<div class="order-chip ${locked ? 'order-chip-locked' : ''}">
         <span class="order-pick-num">${i + 1}</span>
-        <img class="order-logo" src="${src}" alt="${team}" onerror="this.style.display='none'">
+        <span class="order-logo-wrap"><img class="order-logo" src="${src}" alt="${team}" onerror="this.parentElement.style.display='none'"></span>
         <span class="order-team-name">${team}</span>
         ${scorecardHtml(team)}
       </div>`;
