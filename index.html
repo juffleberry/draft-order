@@ -5,7 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>WC 2026 Fantasy Draft Order</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-  <script src="history-data.js"></script>
+  <script>
+    // Cache-bust history-data.js so a freshly deployed file isn't masked by a stale
+    // CDN/browser copy (the root cause of the grid not matching the chart in prod).
+    // Bucketed to ~10 min (GitHub Pages' cache TTL) so repeat visits still hit cache.
+    // document.write keeps it synchronous, so window.HISTORY_DATA is ready before app start.
+    document.write('<script src="history-data.js?v=' + Math.floor(Date.now() / 600000) + '"><\/script>');
+  </script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: #0a0a0a; color: #e2e8f0; font-family: system-ui, -apple-system, sans-serif; min-height: 100vh; }
@@ -1234,10 +1240,13 @@ async function refresh() {
     // simulation when the live read is AHEAD of the latest snapshot (a game finished
     // since the last regen), in which case it legitimately has newer information.
     const snap = (window.HISTORY_DATA?.snapshots || []).find(
-      s => s.matchesCompleted === state.completedCount && s.topOrders);
+      s => s.matchesCompleted === state.completedCount);
     let probs, topOrders, adp, usedSnapshot = false;
     if (snap) {
-      ({ probs, adp, topOrders } = snap);
+      ({ probs, adp } = snap);
+      // topOrders is optional on older snapshots — degrade to the ADP-expected order
+      // rather than triggering a full re-simulation just because the field is absent.
+      topOrders = snap.topOrders || [{ order: Object.keys(adp).sort((a, b) => adp[a] - adp[b]), pct: 0 }];
       lastSimCO2ug = 0;
       usedSnapshot = true;
     } else {
