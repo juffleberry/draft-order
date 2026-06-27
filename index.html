@@ -192,8 +192,8 @@
     .score-div { height: 1px; background: rgba(187,185,185,0.15); margin: 2px 0; }
     .sc-row { align-items: center; gap: 4px; }
     .sc-label { color: #8aa0b8; flex-shrink: 0; }
-    .sc-flags { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 3px; margin-left: auto; }
-    .sc-flag { width: 14px; height: 10px; border-radius: 2px; object-fit: cover; display: block; box-shadow: 0 0 0 1px rgba(0,0,0,0.4); }
+    .sc-flags { display: flex; flex-wrap: nowrap; align-items: center; justify-content: flex-end; gap: 2px; margin-left: auto; min-width: 0; }
+    .sc-flag { width: 13px; height: 9px; flex-shrink: 0; border-radius: 2px; object-fit: cover; display: block; box-shadow: 0 0 0 1px rgba(0,0,0,0.4); }
     .sc-flag-ph { display: flex; align-items: center; justify-content: center; background: #1e293b; color: #94a3b8; font-size: 0.5rem; font-weight: 700; box-shadow: none; }
     .sc-flag-live { animation: flagPulse 1.3s ease-in-out infinite; }
     @keyframes flagPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
@@ -281,7 +281,9 @@
       .order-logo { width: 28px; height: 28px; }
       .order-chip { width: 62px; min-width: 62px; padding: 4px 5px; }
       .score-row { font-size: 0.55rem; }
-      .sc-flag { width: 12px; height: 9px; }
+      .sc-row { gap: 2px; }
+      .sc-flags { gap: 2px; }
+      .sc-flag { width: 10px; height: 7px; }
       .prob-cell { width: 62px; min-width: 62px; }
       .prob-cell { width: 50px; min-width: 50px; font-size: 0.68rem; }
     }
