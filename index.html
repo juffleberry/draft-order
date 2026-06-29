@@ -32,6 +32,15 @@
     button:hover { background: #005f92; }
     button:disabled { background: #1a1a1a; color: #555; cursor: not-allowed; }
     .auto-refresh { font-size: 0.75rem; color: #888; }
+    .upcoming-24h { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; font-size: 0.75rem; }
+    .upcoming-24h .u24-label { color: #888; text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.7rem; }
+    .u24-match { display: inline-flex; align-items: center; gap: 0.3rem; background: #111; border: 1px solid rgba(187,185,185,0.15); border-radius: 5px; padding: 0.15rem 0.45rem; color: #BBB9B9; white-space: nowrap; }
+    .u24-match .u24-time { color: #4da3d4; font-weight: 600; }
+    .u24-match.u24-live { border-color: rgba(239,68,68,0.55); }
+    .u24-match.u24-live .u24-clock { color: #f87171; }
+    .u24-match.u24-live .u24-clock::before { content: '● '; color: #ef4444; }
+    .u24-match.u24-done { opacity: 0.72; }
+    .u24-match.u24-done .u24-ft { color: #888; font-weight: 600; }
 
     .grid-wrapper { padding: 1.25rem 2rem; overflow-x: auto; }
 
@@ -184,6 +193,9 @@
     .order-chip-locked .order-team-name { color: #7fbfe0; }
     .order-logo-wrap { position: relative; display: inline-block; line-height: 0; }
     .order-chip-locked .order-logo-wrap::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: #0076B6; mix-blend-mode: multiply; opacity: 0.5; pointer-events: none; }
+    /* Teams with a fixture kicking off within the next 24h: faint Lions-silver outline + wash. */
+    .order-chip-soon { position: relative; outline: 1px solid rgba(176,183,188,0.45); outline-offset: -1px; }
+    .order-chip-soon::after { content: ''; position: absolute; inset: 0; border-radius: 8px; background: rgba(176,183,188,0.05); pointer-events: none; }
     .score-card { width: 100%; margin-top: 0.35rem; padding-top: 0.3rem; border-top: 1px solid rgba(187,185,185,0.15); display: flex; flex-direction: column; gap: 1px; }
     .score-row { display: flex; justify-content: space-between; align-items: baseline; font-size: 0.58rem; line-height: 1.35; color: #94a3b8; }
     .score-row .sv { color: #e2e8f0; font-weight: 700; }
@@ -314,6 +326,7 @@
   <div class="controls">
     <button id="refresh-btn" onclick="refresh()" disabled>↻ Refresh</button>
     <span class="auto-refresh">Auto-refreshes every 5 min</span>
+    <div id="upcoming-24h" class="upcoming-24h"></div>
   </div>
   <div id="top-orders"></div>
 
@@ -592,6 +605,7 @@ function parseTournamentState(events) {
   const knockoutEliminated = {};  // team → STAGE value (for completed knockout)
   const knockoutAlive = new Set(); // teams known to have won a knockout game
   const r32Actual = [], koResults = []; // real R32 matchups + completed KO results
+  const fixtures = []; // { home, away, kickoff (ms epoch), done } for every scheduled game
 
   function statsOf(name) {
     if (!allTeamStats[name]) allTeamStats[name] = { gf: 0, ga: 0 };
@@ -611,6 +625,12 @@ function parseTournamentState(events) {
     const ag = done ? parseInt(c1.score || '0') : null;
     const homeWin = done ? !!c0.winner : null;
     const awayWin = done ? !!c1.winner : null;
+    fixtures.push({
+      home, away, kickoff: Date.parse(event.date), done,
+      state: comp.status.type.state,                 // 'pre' | 'in' | 'post'
+      hs: c0.score, as: c1.score,                    // current score (live or final)
+      clock: comp.status.type.shortDetail,           // e.g. "45'", "HT", "Scheduled"
+    });
 
     if (round === 'GROUP') {
       const m = (comp.altGameNote || '').match(/Group ([A-L])/i);
@@ -672,7 +692,7 @@ function parseTournamentState(events) {
     Object.entries(groupTeams).every(([g, set]) =>
       set.size === 4 && [...set].every(t => (groupStandings[g]?.[t]?.gp ?? 0) >= 3));
   return { groupStandings, groupTeams, groupGames, allTeamStats, knockoutEliminated, knockoutAlive,
-           completedCount, r32Actual, koResults, groupsComplete };
+           completedCount, r32Actual, koResults, groupsComplete, fixtures };
 }
 
 // ─── SIMULATION ENGINE ───────────────────────────────────────────────────────
@@ -1091,10 +1111,55 @@ function scorecardHtml(team) {
   </div>`;
 }
 
+// WC teams with a not-yet-played fixture kicking off within the next `hours` hours.
+function teamsPlayingSoon(state, hours = 24) {
+  const soon = new Set();
+  const now = Date.now();
+  const limit = now + hours * 3600 * 1000;
+  for (const f of state?.fixtures || []) {
+    if (f.done || !f.kickoff) continue;
+    if (f.kickoff >= now && f.kickoff <= limit) { soon.add(f.home); soon.add(f.away); }
+  }
+  return soon;
+}
+
+// Controls-bar list of every fixture kicking off within the next 24h.
+function renderUpcoming24h(state) {
+  const el = document.getElementById('upcoming-24h');
+  if (!el) return;
+  const now = Date.now();
+  const dayMs = 24 * 3600 * 1000;
+  const today = new Date(now).toDateString();
+  const list = (state?.fixtures || [])
+    .filter(f => !f.kickoff ? false
+      : f.state === 'in'                                                       // live right now…
+      || (f.state === 'post' && f.kickoff >= now - dayMs && f.kickoff <= now)  // …finished, kicked off in last 24h…
+      || (f.state !== 'post' && !f.done && f.kickoff >= now && f.kickoff <= now + dayMs)) // …or kicking off in next 24h
+    .sort((a, b) => a.kickoff - b.kickoff);                                     // chronological timeline
+  if (!list.length) { el.innerHTML = ''; return; }
+  const matches = list.map(f => {
+    if (f.state === 'post' || f.done) {                            // final result
+      return `<span class="u24-match u24-done">${flagImg(f.home)}<span class="u24-teams">${f.home} <strong>${f.hs}–${f.as}</strong> ${f.away}</span>${flagImg(f.away)}<span class="u24-time u24-ft">${f.clock || 'FT'}</span></span>`;
+    }
+    if (f.state === 'in') {                                        // live score
+      return `<span class="u24-match u24-live">${flagImg(f.home)}<span class="u24-teams">${f.home} <strong>${f.hs}–${f.as}</strong> ${f.away}</span>${flagImg(f.away)}<span class="u24-time u24-clock">${f.clock || 'LIVE'}</span></span>`;
+    }
+    const d = new Date(f.kickoff);                                 // upcoming kickoff time
+    const t = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const day = d.toDateString() === today ? '' : d.toLocaleDateString([], { weekday: 'short' }) + ' ';
+    return `<span class="u24-match">${flagImg(f.home)}<span class="u24-teams">${f.home} v ${f.away}</span>${flagImg(f.away)}<span class="u24-time">${day}${t}</span></span>`;
+  }).join('');
+  el.innerHTML = `<span class="u24-label">Last &amp; next 24h</span>${matches}`;
+}
+
 function renderTopOrders(topOrders, probs, adp) {
   if (!topOrders || !adp) return;
 
   const isAdp = orderBannerMode === 'adp';
+
+  // A fantasy team chip is flagged when any of its 3 WC teams plays within 24h.
+  const soon = teamsPlayingSoon(lastState);
+  const playingSoon = team => (FANTASY_TEAMS[team] || []).some(t => soon.has(t));
 
   let chips;
   if (isAdp) {
@@ -1102,7 +1167,7 @@ function renderTopOrders(topOrders, probs, adp) {
     chips = sorted.map((team) => {
       const src = `assets/teams/${encodeURIComponent(team)}.png`;
       const locked = probs && Math.max(...(probs[team] || [0])) >= LOCK_THRESHOLD;
-      return `<div class="order-chip ${locked ? 'order-chip-locked' : ''}">
+      return `<div class="order-chip ${locked ? 'order-chip-locked' : ''} ${playingSoon(team) ? 'order-chip-soon' : ''}">
         <span class="order-pick-num">${adp[team].toFixed(1)}</span>
         <span class="order-logo-wrap"><img class="order-logo" src="${src}" alt="${team}" onerror="this.parentElement.style.display='none'"></span>
         <span class="order-team-name">${team}</span>
@@ -1114,7 +1179,7 @@ function renderTopOrders(topOrders, probs, adp) {
     chips = best.order.map((team, i) => {
       const src = `assets/teams/${encodeURIComponent(team)}.png`;
       const locked = probs && (probs[team]?.[i] ?? 0) >= LOCK_THRESHOLD;
-      return `<div class="order-chip ${locked ? 'order-chip-locked' : ''}">
+      return `<div class="order-chip ${locked ? 'order-chip-locked' : ''} ${playingSoon(team) ? 'order-chip-soon' : ''}">
         <span class="order-pick-num">${i + 1}</span>
         <span class="order-logo-wrap"><img class="order-logo" src="${src}" alt="${team}" onerror="this.parentElement.style.display='none'"></span>
         <span class="order-team-name">${team}</span>
@@ -1186,12 +1251,14 @@ function computeFinalRanks(state, wcTeamStage) {
   for (const [g, teamSet] of Object.entries(state.groupTeams)) {
     sortGroup([...teamSet], state.groupStandings[g] || {}).forEach((t, i) => { groupPos[t] = i; });
   }
-  const alive = state.knockoutAlive || new Set();
-  const tierOf = t => {
-    if (wcTeamStage[t] !== undefined) return wcTeamStage[t]; // 0 group-out … 7 winner
-    if (alive.has && alive.has(t)) return 1.5;               // won a KO game, still alive
-    return 0;                                                // alive, still group stage
-  };
+  // Only eliminated (settled) teams ever display a rank, so the relative order of
+  // still-alive teams doesn't matter — they just all need to outrank every eliminated
+  // team. Lumping them at a single high tier means a team knocked out at, say, the R32
+  // ranks immediately below the block of teams still in the tournament, even if most of
+  // those teams haven't played their next game yet (which would otherwise leave them at
+  // group tier and let the eliminated team leapfrog them).
+  const ALIVE = 100;
+  const tierOf = t => wcTeamStage[t] !== undefined ? wcTeamStage[t] : ALIVE;
   const arr = [...teams].map(t => {
     const s = state.allTeamStats[t] || { gf: 0, ga: 0 };
     return { t, tier: tierOf(t), pos: groupPos[t] ?? 3, pts: gpts[t] ?? 0, gd: s.gf - s.ga, gf: s.gf, ga: s.ga };
@@ -1493,6 +1560,7 @@ async function refresh() {
     lastWcTeamStage = computeWcTeamStage(state);
     renderTopOrders(topOrders, probs, adp);
     renderGrid(probs, currentEstimate, state, currentSortCol);
+    renderUpcoming24h(state);
     syncChipSpacer();
 
     const now = new Date();
