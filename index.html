@@ -32,9 +32,14 @@
     button:hover { background: #005f92; }
     button:disabled { background: #1a1a1a; color: #555; cursor: not-allowed; }
     .auto-refresh { font-size: 0.75rem; color: #888; }
-    .upcoming-24h { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; font-size: 0.75rem; }
-    .upcoming-24h .u24-label { color: #888; text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.7rem; }
-    .u24-match { display: inline-flex; align-items: center; gap: 0.3rem; background: #111; border: 1px solid rgba(187,185,185,0.15); border-radius: 5px; padding: 0.15rem 0.45rem; color: #BBB9B9; white-space: nowrap; }
+    .upcoming-24h { flex: 1; min-width: 0; display: flex; font-size: 0.75rem; }
+    .u24-scroll { flex: 1; min-width: 0; display: flex; flex-wrap: nowrap; align-items: center; gap: 0.5rem; overflow-x: auto; overflow-y: hidden; padding-bottom: 3px; scrollbar-width: thin; scrollbar-color: rgba(187,185,185,0.3) transparent; }
+    .u24-scroll::-webkit-scrollbar { height: 6px; }
+    .u24-scroll::-webkit-scrollbar-thumb { background: rgba(187,185,185,0.25); border-radius: 3px; }
+    .u24-group { flex-shrink: 0; display: flex; align-items: center; gap: 4px; }
+    .u24-label { flex-shrink: 0; color: #888; text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.65rem; margin-right: 0.1rem; }
+    .u24-sep { flex-shrink: 0; align-self: stretch; width: 1px; background: rgba(187,185,185,0.2); margin: 2px 0.25rem; }
+    .u24-match { flex-shrink: 0; display: inline-flex; align-items: center; gap: 0.3rem; background: #111; border: 1px solid rgba(187,185,185,0.15); border-radius: 5px; padding: 0.15rem 0.45rem; color: #BBB9B9; white-space: nowrap; }
     .u24-match .u24-time { color: #4da3d4; font-weight: 600; }
     .u24-match.u24-live { border-color: rgba(239,68,68,0.55); }
     .u24-match.u24-live .u24-clock { color: #f87171; }
@@ -1123,33 +1128,43 @@ function teamsPlayingSoon(state, hours = 24) {
   return soon;
 }
 
-// Controls-bar list of every fixture kicking off within the next 24h.
+// Controls-bar fixtures across a ±24h window, split into two scrollable lines:
+// line 1 = finished (last 24h) + live now, line 2 = upcoming (next 24h).
 function renderUpcoming24h(state) {
   const el = document.getElementById('upcoming-24h');
   if (!el) return;
   const now = Date.now();
   const dayMs = 24 * 3600 * 1000;
   const today = new Date(now).toDateString();
-  const list = (state?.fixtures || [])
-    .filter(f => !f.kickoff ? false
-      : f.state === 'in'                                                       // live right now…
-      || (f.state === 'post' && f.kickoff >= now - dayMs && f.kickoff <= now)  // …finished, kicked off in last 24h…
-      || (f.state !== 'post' && !f.done && f.kickoff >= now && f.kickoff <= now + dayMs)) // …or kicking off in next 24h
-    .sort((a, b) => a.kickoff - b.kickoff);                                     // chronological timeline
-  if (!list.length) { el.innerHTML = ''; return; }
-  const matches = list.map(f => {
-    if (f.state === 'post' || f.done) {                            // final result
-      return `<span class="u24-match u24-done">${flagImg(f.home)}<span class="u24-teams">${f.home} <strong>${f.hs}–${f.as}</strong> ${f.away}</span>${flagImg(f.away)}<span class="u24-time u24-ft">${f.clock || 'FT'}</span></span>`;
-    }
-    if (f.state === 'in') {                                        // live score
-      return `<span class="u24-match u24-live">${flagImg(f.home)}<span class="u24-teams">${f.home} <strong>${f.hs}–${f.as}</strong> ${f.away}</span>${flagImg(f.away)}<span class="u24-time u24-clock">${f.clock || 'LIVE'}</span></span>`;
-    }
-    const d = new Date(f.kickoff);                                 // upcoming kickoff time
+  const fx = state?.fixtures || [];
+
+  const isLive = f => f.state === 'in';
+  const isRecent = f => (f.state === 'post' || f.done) && f.kickoff && f.kickoff >= now - dayMs && f.kickoff <= now;
+  const isUpcoming = f => f.state !== 'post' && !f.done && f.state !== 'in' && f.kickoff && f.kickoff >= now && f.kickoff <= now + dayMs;
+
+  const doneChip = f => `<span class="u24-match u24-done">${flagImg(f.home)}<span class="u24-teams">${f.home} <strong>${f.hs}–${f.as}</strong> ${f.away}</span>${flagImg(f.away)}<span class="u24-time u24-ft">${f.clock || 'FT'}</span></span>`;
+  const liveChip = f => `<span class="u24-match u24-live">${flagImg(f.home)}<span class="u24-teams">${f.home} <strong>${f.hs}–${f.as}</strong> ${f.away}</span>${flagImg(f.away)}<span class="u24-time u24-clock">${f.clock || 'LIVE'}</span></span>`;
+  const upChip = f => {
+    const d = new Date(f.kickoff);
     const t = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const day = d.toDateString() === today ? '' : d.toLocaleDateString([], { weekday: 'short' }) + ' ';
     return `<span class="u24-match">${flagImg(f.home)}<span class="u24-teams">${f.home} v ${f.away}</span>${flagImg(f.away)}<span class="u24-time">${day}${t}</span></span>`;
-  }).join('');
-  el.innerHTML = `<span class="u24-label">Last &amp; next 24h</span>${matches}`;
+  };
+
+  const past = fx.filter(f => isLive(f) || isRecent(f)).sort((a, b) => a.kickoff - b.kickoff);
+  const next = fx.filter(isUpcoming).sort((a, b) => a.kickoff - b.kickoff);
+
+  const groupHtml = (label, chips) =>
+    `<div class="u24-group"><span class="u24-label">${label}</span>${chips}</div>`;
+
+  const groups = [];
+  if (past.length) {
+    const label = past.some(isLive) ? 'Live &amp; results' : 'Results';
+    groups.push(groupHtml(label, past.map(f => isLive(f) ? liveChip(f) : doneChip(f)).join('')));
+  }
+  if (next.length) groups.push(groupHtml('Upcoming', next.map(upChip).join('')));
+
+  el.innerHTML = groups.length ? `<div class="u24-scroll">${groups.join('<div class="u24-sep"></div>')}</div>` : '';
 }
 
 function renderTopOrders(topOrders, probs, adp) {
