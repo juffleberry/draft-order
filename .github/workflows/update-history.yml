@@ -1,0 +1,41 @@
+name: Update history data
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'   # every 15 minutes (UTC)
+  workflow_dispatch:          # allow manual runs from the Actions tab
+
+# Allow the job to commit the regenerated data file back to the repo
+permissions:
+  contents: write
+
+# Avoid overlapping runs piling up commits
+concurrency:
+  group: update-history
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Incremental: only simulates match counts not already in history-data.js
+      - name: Regenerate history data
+        run: node generate-history.js
+
+      - name: Commit if changed
+        run: |
+          if ! git diff --quiet -- history-data.js; then
+            git config user.name  "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add history-data.js
+            git commit -m "Auto-update history data [skip ci]"
+            git push
+          else
+            echo "No new completed matches — nothing to commit."
+          fi
