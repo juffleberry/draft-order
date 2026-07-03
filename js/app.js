@@ -50,6 +50,9 @@ async function refresh() {
 
   try {
     const events = await fetchAllGames();
+    // Feed completed matches to the history views (annotation chips + tooltips)
+    // in case the committed HISTORY_DATA predates the matches field
+    setLiveHistoryMatches(events);
     document.getElementById('status').innerHTML = '<span class="spinner"></span>Running Monte Carlo simulation (10,000 runs)…';
 
     const state = parseTournamentState(events);

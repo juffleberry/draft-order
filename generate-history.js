@@ -505,9 +505,24 @@ async function main() {
   }
 
   console.log('\n\nWriting history-data.js…');
+  // Match metadata for the UI's annotation chips/tooltips: matches[k-1] is the
+  // result that moved snapshot k-1 → k. Presentation-only — does not affect the
+  // model, so existing snapshots stay valid (no --force needed).
+  const matches = completedEvents.map(e => {
+    const comp = e.competitions[0];
+    const home = comp.competitors.find(c => c.homeAway === 'home') || comp.competitors[0];
+    const away = comp.competitors.find(c => c.homeAway === 'away') || comp.competitors[1];
+    return {
+      home: normalize(home?.team?.displayName || '?'),
+      away: normalize(away?.team?.displayName || '?'),
+      hs: parseInt(home?.score, 10) || 0,
+      as: parseInt(away?.score, 10) || 0,
+    };
+  });
   const output = {
     generated: new Date().toISOString(),
     totalMatches: completedEvents.length,
+    matches,
     snapshots,
   };
   writeFileSync('history-data.js', `window.HISTORY_DATA = ${JSON.stringify(output)};`);

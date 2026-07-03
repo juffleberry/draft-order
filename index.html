@@ -131,6 +131,11 @@
   <section class="history-section">
     <div class="section-bar">
       <div class="section-title">Draft Pick Probability Over Time</div>
+      <div class="seg-toggle" id="history-view-toggle">
+        <button data-hview="timeline" class="seg-active">Timeline</button>
+        <button data-hview="stream">Team Flow</button>
+        <button data-hview="spark">Form Guide</button>
+      </div>
     </div>
     <div class="history-body">
       <div class="history-tabs" id="history-tabs"></div>
@@ -138,6 +143,12 @@
         <div id="history-no-data">Run <code>node generate-history.js</code> to generate history-data.js</div>
         <canvas id="history-chart" style="display:none"></canvas>
         <div id="history-tooltip"></div>
+      </div>
+      <div id="history-spark" class="spark-grid hidden"></div>
+      <div class="history-replay hidden" id="history-replay">
+        <button id="replay-btn" title="Replay how the odds evolved">▶</button>
+        <input type="range" id="replay-slider" min="0" max="0" value="0" step="1" aria-label="Replay position">
+        <span id="replay-label"></span>
       </div>
     </div>
   </section>
