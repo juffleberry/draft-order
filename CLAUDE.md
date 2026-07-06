@@ -23,6 +23,10 @@ If tied between two fantasy teams, then tiebreakers are:
   (Node/CI) — any model change must be mirrored there and history force-regenerated;
   see `memory/dual-engine-sync.md`
 - `js/ui.js` — chip stage + scorecards, tickers, match center, heat grid, top-10 panel
+- `js/live.js` — live swing meter: featured-fixture pick, in-game model (goals kept,
+  λ × minutes-remaining/90 for the rest), kick-by-kick shootout win prob
+  (best-of-5 recursion, 75% conversion, strength-weighted sudden death), mini
+  strip renderer + full 16-team ADP-delta table ("Swing Meter" tab, `?hview=swing`)
 - `js/surface.js` — 3D probability surface (CSS-3D bar field, drag/zoom)
 - `js/history.js` — probability-over-time section, three views (seg-toggle):
   Timeline (ADP bump chart + per-pick P1–16 lines, match-swing annotation chips,
@@ -46,6 +50,13 @@ If tied between two fantasy teams, then tiebreakers are:
   --x variable, decision desk, podium ring, floor grid, haze
 - Scrolling Draft Wire ticker + Match Center strip (live / last-24h results /
   next-24h fixtures)
+- Swing Meter strip (gold tag, under Match Center): featured game = live game
+  else next kickoff, simulated FROM its current scoreline via `runMonteCarlo`'s
+  `live` param (each sim tagged with the game's outcome → conditional pick
+  distributions). Shows live advance/win-draw odds and the 2 fantasy teams with
+  the biggest conditional-ADP swing, each as a 16-cell probability line. A
+  4th history-section tab shows all 16 teams as ADP-now + per-outcome deltas.
+  Shootouts react per kick (ESPN play-by-play `details[].shootout`)
 - "Draft Pick Probability Over Time" fed by committed history snapshots, three
   views: Timeline (default tab ADP RACE = bump chart of projected draft slot,
   hover dims other ribbons; tabs P1–16 = probability lines) with gold
@@ -56,11 +67,18 @@ If tied between two fantasy teams, then tiebreakers are:
 - Probability matrix has two views: classic 16x16 heat grid (fantasy teams on
   Y, picks 1–16 on X, sort cycles desc→asc→default, expandable team detail rows)
   and a drag-to-rotate 3D surface showing the joint distribution P(team, pick)
-  (`?view=grid|surface` overrides the default)
+  (`?view=grid|surface` overrides the default). While a game is live the surface
+  bars are STACKED vs the at-kickoff baseline: blue = pre-kickoff level, solid
+  green extension = probability gained, translucent red ghost = probability lost
+  (tooltips show the ±pp delta; baseline = snapshot else one cached plain run)
+- Dev/testing: `?mock=H-A@MIN` (e.g. `?mock=2-0@40`) fakes the featured game
+  in-play at that score/minute — exercises the whole live pipeline offline
 - Monte Carlo: 10,000 runs, FIXED seed 20260611 (must match generate-history.js);
   knockout uses the real FIFA bracket tree, not random pairing
-- refresh() prefers the committed history snapshot when it matches the current
-  completed-game count, so the grid reconciles with the chart exactly
+- refresh() source priority: featured game IN PLAY → live-aware run feeds the
+  whole page (grid, surface, chips, ticker; footer says so); else committed
+  snapshot matching the completed-game count (grid reconciles with the chart
+  exactly); else plain run. The live run is cached on score⊕clock⊕pens state
 - Live data pulled from ESPN World Cup API, auto-refreshes every 5 min
 
 ## Stack

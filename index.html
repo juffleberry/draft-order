@@ -53,6 +53,12 @@
     <div class="mc-scroll" id="mc-scroll"></div>
   </div>
 
+  <!-- ═══ SWING METER (live draft impact of the featured game) ═══ -->
+  <div class="swing-meter hidden">
+    <div class="ticker-tag sw-tag">SWING METER</div>
+    <div class="sw-body" id="sw-body"></div>
+  </div>
+
   <!-- ═══ 3D DRAFT STAGE ═══ -->
   <section class="stage-section">
     <div class="section-bar">
@@ -135,6 +141,7 @@
         <button data-hview="timeline" class="seg-active">Timeline</button>
         <button data-hview="stream">Team Flow</button>
         <button data-hview="spark">Form Guide</button>
+        <button data-hview="swing">Swing Meter</button>
       </div>
     </div>
     <div class="history-body">
@@ -145,6 +152,7 @@
         <div id="history-tooltip"></div>
       </div>
       <div id="history-spark" class="spark-grid hidden"></div>
+      <div id="history-swing" class="hidden"></div>
       <div class="history-replay hidden" id="history-replay">
         <button id="replay-btn" title="Replay how the odds evolved">▶</button>
         <input type="range" id="replay-slider" min="0" max="0" value="0" step="1" aria-label="Replay position">
@@ -187,6 +195,7 @@
   <script src="js/engine.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/surface.js"></script>
+  <script src="js/live.js"></script>
   <script src="js/history.js"></script>
   <script src="js/app.js"></script>
 </body>

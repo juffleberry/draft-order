@@ -17,7 +17,9 @@ const HISTORY_COLORS = [
 
 const TEAM_LIST = Object.keys(FANTASY_TEAMS);
 let historyData = null;
-let historyView = 'timeline';   // 'timeline' | 'stream' | 'spark'
+// 'timeline' | 'stream' | 'spark' | 'swing' — ?hview= overrides the default
+let historyView = new URLSearchParams(location.search).get('hview') || 'timeline';
+if (!['timeline', 'stream', 'spark', 'swing'].includes(historyView)) historyView = 'timeline';
 let activePickTab = 'adp';      // 'adp' = bump chart, 0–15 = pick index
 let activeStreamTeam = null;
 let historyChart = null;
@@ -308,7 +310,7 @@ function setHistoryView(view) {
 
 function buildTabBar() {
   const container = document.getElementById('history-tabs');
-  if (historyView === 'spark') { container.innerHTML = ''; return; }
+  if (historyView === 'spark' || historyView === 'swing') { container.innerHTML = ''; return; }
   if (historyView === 'stream') {
     if (!activeStreamTeam) activeStreamTeam = defaultStreamTeam();
     container.innerHTML = TEAM_LIST.map(t =>
@@ -331,12 +333,17 @@ function renderHistoryView() {
   const tabsEl = document.getElementById('history-tabs');
   const replayEl = document.getElementById('history-replay');
 
+  const swingEl = document.getElementById('history-swing');
+  // Swing view doesn't need historyData — it reads the live-aware MC from app.js
+  const isSwing = historyView === 'swing';
   const isSpark = historyView === 'spark' && !!historyData;
-  chartWrap.classList.toggle('hidden', isSpark);
+  chartWrap.classList.toggle('hidden', isSpark || isSwing);
   sparkEl.classList.toggle('hidden', !isSpark);
-  tabsEl.classList.toggle('hidden', isSpark);
-  replayEl.classList.toggle('hidden', isSpark || !historyData);
+  if (swingEl) swingEl.classList.toggle('hidden', !isSwing);
+  tabsEl.classList.toggle('hidden', isSpark || isSwing);
+  replayEl.classList.toggle('hidden', isSpark || isSwing || !historyData);
   buildTabBar();
+  if (isSwing) { renderSwingFull(); return; }
   if (!historyData) return;
   if (isSpark) renderSparkGrid();
   else renderHistoryChart();
@@ -647,7 +654,9 @@ function drawSparklines() {
 function loadHistoryData() {
   if (window.HISTORY_DATA) {
     historyData = window.HISTORY_DATA;
-    renderHistoryView();
+    // setHistoryView (not renderHistoryView) so a ?hview= override also gets
+    // the matching seg-toggle button highlighted on first paint
+    setHistoryView(historyView);
   }
   // If history-data.js wasn't loaded, placeholder message stays visible
 }

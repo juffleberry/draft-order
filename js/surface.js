@@ -34,9 +34,20 @@ function resetSurfaceView() {
   applySurfaceTransform();
 }
 
+// Blend the heat color toward green (probability gained since kickoff) or red
+// (lost) while a live game is folded into the numbers. Intensity saturates at
+// ±8pp so a 1–2pp wobble stays subtle and a big swing is unmissable.
+function surfDeltaTint(r, g, b, d) {
+  if (!d || Math.abs(d) < 0.5) return [r, g, b];
+  const tgt = d > 0 ? [52, 211, 153] : [248, 113, 113];
+  const w = Math.min(Math.abs(d) / 8, 1) * 0.8;
+  return [Math.round(r + (tgt[0] - r) * w), Math.round(g + (tgt[1] - g) * w), Math.round(b + (tgt[2] - b) * w)];
+}
+
 function renderSurface(probs, sortCol) {
   const world = document.getElementById('surface-world');
   const teams = sortTeams(Object.keys(FANTASY_TEAMS), probs, sortCol, lastAdp);
+  const deltas = typeof lastProbsDelta !== 'undefined' ? lastProbsDelta : null;
   const C = SURF.cell;
   const size = 16 * C;
   world.style.width = `${size}px`;
@@ -50,32 +61,56 @@ function renderSurface(probs, sortCol) {
   teams.forEach((team, zi) => {
     for (let xi = 0; xi < 16; xi++) {
       const pct = probs[team][xi];
-      const [r, g, b] = heatRGB(pct);
-      html += `<div class="stile" data-team="${team}" data-pick="${xi}" data-pct="${pct}"
+      const d = deltas?.[team]?.[xi] ?? 0;
+      const [r, g, b] = surfDeltaTint(...heatRGB(pct), d);
+      html += `<div class="stile" data-team="${team}" data-pick="${xi}" data-pct="${pct}"${deltas ? ` data-delta="${d.toFixed(1)}"` : ''}
         style="left:${xi * C}px;top:${zi * C}px;width:${C}px;height:${C}px;background:${shadeRGB(r, g, b, 1, 14)}"></div>`;
     }
   });
 
-  // Bars for cells above threshold
+  // Bars for cells above threshold. While a live game is folded in, bars are
+  // STACKED: blue up to the pre-kickoff probability, a solid green extension
+  // for probability gained since kickoff, or a translucent red "ghost" cap
+  // standing where lost probability used to be.
   teams.forEach((team, zi) => {
     for (let xi = 0; xi < 16; xi++) {
       const pct = probs[team][xi];
-      if (pct < SURF.minBarPct) continue;
+      const d = deltas?.[team]?.[xi] ?? 0;
+      const base = pct - d; // pre-kickoff probability
+      if (Math.max(pct, base) < SURF.minBarPct) continue;
       const h = Math.round((pct / 100) * SURF.maxH);
+      const hBase = Math.round((base / 100) * SURF.maxH);
+      const seg = deltas && Math.abs(d) >= 1 ? (d > 0 ? 'gain' : 'loss') : null;
+      const blueH = seg ? Math.min(h, hBase) : h;
+      const segH = seg ? Math.abs(h - hBase) : 0;
+
       const [r, g, b] = heatRGB(Math.max(pct, 6)); // keep small bars visibly blue
       const top   = shadeRGB(r, g, b, 1.15, 55);
       const faceA = shadeRGB(r, g, b, 1.0, 26);
       const faceB = shadeRGB(r, g, b, 0.62, 12);
       const inset = 4; // gap so bars read as separate towers
       const bw = C - inset * 2;
-      html += `<div class="sbar" data-team="${team}" data-pick="${xi}" data-pct="${pct}"
+      html += `<div class="sbar" data-team="${team}" data-pick="${xi}" data-pct="${pct}"${deltas ? ` data-delta="${d.toFixed(1)}" data-base="${base.toFixed(1)}"` : ''}
         style="left:${xi * C + inset}px;top:${zi * C + inset}px;width:${bw}px;height:${bw}px">
-        <div class="sf sf-top" style="transform:translateZ(${h}px);background:${top}"></div>
-        <div class="sf sf-n" style="width:${bw}px;height:${h}px;background:${faceA}"></div>
-        <div class="sf sf-s" style="width:${bw}px;height:${h}px;top:${bw}px;background:${faceA}"></div>
-        <div class="sf sf-w" style="width:${h}px;height:${bw}px;background:${faceB}"></div>
-        <div class="sf sf-e" style="width:${h}px;height:${bw}px;left:${bw}px;background:${faceB}"></div>
-      </div>`;
+        <div class="sf sf-top" style="transform:translateZ(${blueH}px);background:${top}"></div>
+        <div class="sf sf-n" style="width:${bw}px;height:${blueH}px;background:${faceA}"></div>
+        <div class="sf sf-s" style="width:${bw}px;height:${blueH}px;top:${bw}px;background:${faceA}"></div>
+        <div class="sf sf-w" style="width:${blueH}px;height:${bw}px;background:${faceB}"></div>
+        <div class="sf sf-e" style="width:${blueH}px;height:${bw}px;left:${bw}px;background:${faceB}"></div>`;
+      if (seg) {
+        const [sr, sg, sb] = seg === 'gain' ? [52, 211, 153] : [248, 113, 113];
+        const sTop = shadeRGB(sr, sg, sb, 1.1, 40);
+        const sA = shadeRGB(sr, sg, sb, 0.95, 10);
+        const sB = shadeRGB(sr, sg, sb, 0.6, 6);
+        const op = seg === 'loss' ? 'opacity:.55;' : '';
+        html += `
+        <div class="sf" style="width:${bw}px;height:${bw}px;transform:translateZ(${blueH + segH}px);background:${sTop};${op}box-shadow:inset 0 0 0 1px rgba(255,255,255,.15)"></div>
+        <div class="sf" style="width:${bw}px;height:${segH}px;transform-origin:0 0;transform:translateZ(${blueH}px) rotateX(90deg);background:${sA};${op}"></div>
+        <div class="sf" style="width:${bw}px;height:${segH}px;top:${bw}px;transform-origin:0 0;transform:translateZ(${blueH}px) rotateX(90deg);background:${sA};${op}"></div>
+        <div class="sf" style="width:${segH}px;height:${bw}px;transform-origin:0 0;transform:translateZ(${blueH}px) rotateY(-90deg);background:${sB};${op}"></div>
+        <div class="sf" style="width:${segH}px;height:${bw}px;left:${bw}px;transform-origin:0 0;transform:translateZ(${blueH}px) rotateY(-90deg);background:${sB};${op}"></div>`;
+      }
+      html += `</div>`;
     }
   });
 
@@ -108,8 +143,16 @@ function initSurfaceInteraction() {
       const cell = e.target.closest('.sbar, .stile');
       if (cell) {
         const pct = parseFloat(cell.dataset.pct);
+        let deltaLine = '';
+        if (cell.dataset.delta !== undefined) {
+          const d = parseFloat(cell.dataset.delta);
+          const wasBit = cell.dataset.base !== undefined ? ` (was ${parseFloat(cell.dataset.base).toFixed(1)}%)` : '';
+          deltaLine = Math.abs(d) >= 0.05
+            ? `<div class="tt-line" style="color:${d > 0 ? '#34d399' : '#f87171'}">${d > 0 ? '▲ +' : '▼ '}${d.toFixed(1)}pp since kickoff${wasBit}</div>`
+            : `<div class="tt-line" style="opacity:.6">· unchanged since kickoff</div>`;
+        }
         showTooltip(`<div class="tt-title">${cell.dataset.team}</div>
-          <div class="tt-line">Pick ${parseInt(cell.dataset.pick) + 1} · <b>${pct.toFixed(1)}%</b></div>`,
+          <div class="tt-line">Pick ${parseInt(cell.dataset.pick) + 1} · <b>${pct.toFixed(1)}%</b></div>${deltaLine}`,
           e.clientX, e.clientY);
       } else {
         hideTooltip();

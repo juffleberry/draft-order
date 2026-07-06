@@ -279,16 +279,34 @@ function matchThirds(thirds) {
 // `knownWinner` maps a sorted "teamA::teamB" key to the actual winner for already
 // completed knockout games (those goals are already in base stats, so we don't
 // re-add them). Returns stage assignments for every knockout team.
-function simulateBracket(seeded, statsOf, knownWinner) {
+function simulateBracket(seeded, statsOf, knownWinner, live = null) {
   const stage = {}, winner = {}, loser = {};
+  let watched = null;
   const key = (a, b) => [a, b].sort().join('::');
   function play(m, t1, t2) {
     const known = knownWinner[key(t1, t2)];
     if (known) { winner[m] = known; loser[m] = known === t1 ? t2 : t1; return; }
-    const hg = poisson(goalLambda(t1)), ag = poisson(goalLambda(t2));
+    // Live-watched game (browser swing meter only — CI never sets `live`): keep
+    // the goals already on the board and simulate only the remaining minutes.
+    const isWatched = live && live.isKO &&
+      ((t1 === live.home && t2 === live.away) || (t1 === live.away && t2 === live.home));
+    let hg, ag;
+    if (isWatched) {
+      hg = (t1 === live.home ? live.hg : live.ag) + poisson(goalLambda(t1) * live.remFrac);
+      ag = (t2 === live.home ? live.hg : live.ag) + poisson(goalLambda(t2) * live.remFrac);
+    } else {
+      hg = poisson(goalLambda(t1)); ag = poisson(goalLambda(t2));
+    }
     const s1 = getStrength(t1), s2 = getStrength(t2);
-    const t1wins = hg > ag || (hg === ag && rng() < s1 / (s1 + s2));
+    const pens = hg === ag;
+    // Tie rule: strength-weighted shootout — unless the watched game's shootout is
+    // actually underway, in which case live.pensP is the kick-by-kick win prob.
+    const pTie = isWatched && live.pensP != null
+      ? (t1 === live.home ? live.pensP : 1 - live.pensP)
+      : s1 / (s1 + s2);
+    const t1wins = hg > ag || (pens && rng() < pTie);
     winner[m] = t1wins ? t1 : t2; loser[m] = t1wins ? t2 : t1;
+    if (isWatched) watched = { outcome: winner[m] === live.home ? 'H' : 'A', pens };
     statsOf(t1).gf += hg; statsOf(t1).ga += ag;
     statsOf(t2).gf += ag; statsOf(t2).ga += hg;
   }
@@ -307,12 +325,13 @@ function simulateBracket(seeded, statsOf, knownWinner) {
   play(FINAL_MATCH, winner[SF_MATCHES[0]], winner[SF_MATCHES[1]]);
   stage[winner[FINAL_MATCH]] = STAGE.WINNER;
   stage[loser[FINAL_MATCH]] = STAGE.RUNNER_UP;
-  return stage;
+  return { stage, watched };
 }
 function range(a, b) { const r = []; for (let i = a; i <= b; i++) r.push(i); return r; }
 
-function runOneSimulation(state) {
+function runOneSimulation(state, live = null) {
   const { groupStandings: baseSt, groupTeams, groupGames, allTeamStats, knockoutEliminated, knockoutAlive } = state;
+  let watched = null; // outcome of the live-watched game in THIS sim ('H'/'D'/'A')
   const st = {};
   for (const [g, teams] of Object.entries(baseSt)) {
     st[g] = {};
@@ -324,7 +343,10 @@ function runOneSimulation(state) {
 
   for (const g of groupGames) {
     if (g.done || !g.group) continue;
-    const hg = poisson(goalLambda(g.home)), ag = poisson(goalLambda(g.away));
+    const isWatched = live && !live.isKO && g.home === live.home && g.away === live.away;
+    const hg = isWatched ? live.hg + poisson(goalLambda(g.home) * live.remFrac) : poisson(goalLambda(g.home));
+    const ag = isWatched ? live.ag + poisson(goalLambda(g.away) * live.remFrac) : poisson(goalLambda(g.away));
+    if (isWatched) watched = { outcome: hg > ag ? 'H' : ag > hg ? 'A' : 'D', pens: false };
     if (!st[g.group]) st[g.group] = {};
     const gs = st[g.group];
     if (!gs[g.home]) gs[g.home] = { pts: 0, gf: 0, ga: 0, gp: 0 };
@@ -382,9 +404,11 @@ function runOneSimulation(state) {
   for (const r of (state.koResults || [])) knownWinner[[r.a, r.b].sort().join('::')] = r.winner;
 
   // ── Walk the fixed bracket (path-dependent) ──
-  Object.assign(stage, simulateBracket(seeded, statsOf, knownWinner));
+  const bracket = simulateBracket(seeded, statsOf, knownWinner, live);
+  Object.assign(stage, bracket.stage);
+  if (bracket.watched) watched = bracket.watched;
 
-  return { stage, stats };
+  return { stage, stats, watched };
 }
 
 function rankFantasyTeams(stage, stats) {
@@ -408,7 +432,9 @@ function rankFantasyTeams(stage, stats) {
     .map(s => s.team);
 }
 
-function runMonteCarlo(state, N = 10000) {
+// `live` (optional, browser swing meter only — CI never sets it) marks ONE
+// not-yet-finished game to simulate from its current scoreline; see js/engine.js.
+function runMonteCarlo(state, N = 10000, live = null) {
   // Fixed seed (NOT tied to results): the only thing that should move the numbers
   // between snapshots is new match results, never Monte Carlo resampling noise.
   // index.html must use this SAME constant so the live grid reconciles with the chart.
@@ -417,11 +443,23 @@ function runMonteCarlo(state, N = 10000) {
   const counts = {};
   for (const t of teams) counts[t] = new Array(16).fill(0);
   const orderCounts = {};
+  const newCond = () => {
+    const c = { n: 0, pens: 0, counts: {} };
+    for (const t of teams) c.counts[t] = new Array(16).fill(0);
+    return c;
+  };
+  const condTally = live ? { H: newCond(), D: newCond(), A: newCond() } : null;
 
   for (let i = 0; i < N; i++) {
-    const { stage, stats } = runOneSimulation(state);
+    const { stage, stats, watched } = runOneSimulation(state, live);
     const ranked = rankFantasyTeams(stage, stats);
     ranked.forEach((team, idx) => counts[team][idx]++);
+    if (condTally && watched) {
+      const c = condTally[watched.outcome];
+      c.n++;
+      if (watched.pens) c.pens++;
+      ranked.forEach((team, idx) => c.counts[team][idx]++);
+    }
     const key = ranked.join('|');
     orderCounts[key] = (orderCounts[key] || 0) + 1;
   }
@@ -441,7 +479,22 @@ function runMonteCarlo(state, N = 10000) {
     .slice(0, 10)
     .map(({ order, cnt }) => ({ order, pct: parseFloat(((cnt / N) * 100).toFixed(2)) }));
 
-  return { probs, adp, topOrders };
+  // Conditional pick distributions per watched-game outcome (share = P(outcome))
+  let cond = null;
+  if (condTally) {
+    cond = {};
+    for (const [o, c] of Object.entries(condTally)) {
+      if (!c.n) continue;
+      const oProbs = {}, oAdp = {};
+      for (const t of teams) {
+        oProbs[t] = c.counts[t].map(x => (x / c.n) * 100);
+        oAdp[t] = c.counts[t].reduce((sum, x, i) => sum + x * (i + 1), 0) / c.n;
+      }
+      cond[o] = { probs: oProbs, adp: oAdp, share: (c.n / N) * 100, pens: (c.pens / N) * 100 };
+    }
+  }
+
+  return { probs, adp, topOrders, cond };
 }
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────

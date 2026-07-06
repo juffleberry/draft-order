@@ -96,6 +96,20 @@ function parseTournamentState(events) {
     const c0 = comp.competitors[0], c1 = comp.competitors[1];
     const home = normalize(c0.team.displayName);
     const away = normalize(c1.team.displayName);
+    // Live shootout state from the play-by-play: every kick is a details entry
+    // with shootout:true; scoringPlay marks conversions. Order gives first kicker.
+    let pso = null;
+    const psoKicks = (comp.details || []).filter(d => d.shootout);
+    if (psoKicks.length || comp.status.period >= 5) {
+      const isHome = d => `${d.team?.id}` === `${c0.team.id}`;
+      pso = {
+        hTaken: psoKicks.filter(isHome).length,
+        hScored: psoKicks.filter(d => isHome(d) && d.scoringPlay).length,
+        aTaken: psoKicks.filter(d => !isHome(d)).length,
+        aScored: psoKicks.filter(d => !isHome(d) && d.scoringPlay).length,
+        homeFirst: psoKicks.length ? isHome(psoKicks[0]) : true,
+      };
+    }
     const done = comp.status.type.completed;
     const hg = done ? parseInt(c0.score || '0') : null;
     const ag = done ? parseInt(c1.score || '0') : null;
@@ -106,6 +120,10 @@ function parseTournamentState(events) {
       state: comp.status.type.state,                 // 'pre' | 'in' | 'post'
       hs: c0.score, as: c1.score,                    // current score (live or final)
       clock: comp.status.type.shortDetail,           // e.g. "45'", "HT", "Scheduled"
+      round,                                         // 'GROUP' | 'R32' | … (parseRound)
+      displayClock: comp.status.displayClock || '',  // elapsed clock while in progress
+      period: comp.status.period || 0,               // 1/2 = halves, 3+ = ET, 5 = pens
+      pso,                                           // shootout kick state (or null)
     });
 
     if (round === 'GROUP') {
@@ -253,17 +271,37 @@ function matchThirds(thirds) {
 // Walk the fixed bracket. `seeded` maps each R32 match (73–88) to [team0, team1].
 // `knownWinner` maps a sorted "teamA::teamB" key to the actual winner for already
 // completed knockout games (those goals are already in base stats, so we don't
-// re-add them). Returns stage assignments for every knockout team.
-function simulateBracket(seeded, statsOf, knownWinner) {
+// re-add them). Returns stage assignments for every knockout team, plus the
+// outcome of the live-watched game when `live` is set (see runMonteCarlo).
+function simulateBracket(seeded, statsOf, knownWinner, live = null) {
   const stage = {}, winner = {}, loser = {};
+  let watched = null;
   const key = (a, b) => [a, b].sort().join('::');
   function play(m, t1, t2) {
     const known = knownWinner[key(t1, t2)];
     if (known) { winner[m] = known; loser[m] = known === t1 ? t2 : t1; return; }
-    const hg = poisson(goalLambda(t1)), ag = poisson(goalLambda(t2));
+    // Live-watched game: keep the goals already on the board and Poisson-simulate
+    // only the remaining minutes (λ × remFrac). A level finish falls through to
+    // the engine's shootout rule below, same as any other knockout tie.
+    const isWatched = live && live.isKO &&
+      ((t1 === live.home && t2 === live.away) || (t1 === live.away && t2 === live.home));
+    let hg, ag;
+    if (isWatched) {
+      hg = (t1 === live.home ? live.hg : live.ag) + poisson(goalLambda(t1) * live.remFrac);
+      ag = (t2 === live.home ? live.hg : live.ag) + poisson(goalLambda(t2) * live.remFrac);
+    } else {
+      hg = poisson(goalLambda(t1)); ag = poisson(goalLambda(t2));
+    }
     const s1 = getStrength(t1), s2 = getStrength(t2);
-    const t1wins = hg > ag || (hg === ag && rng() < s1 / (s1 + s2));
+    const pens = hg === ag;
+    // Tie rule: strength-weighted shootout — unless the watched game's shootout is
+    // actually underway, in which case live.pensP is the kick-by-kick win prob.
+    const pTie = isWatched && live.pensP != null
+      ? (t1 === live.home ? live.pensP : 1 - live.pensP)
+      : s1 / (s1 + s2);
+    const t1wins = hg > ag || (pens && rng() < pTie);
     winner[m] = t1wins ? t1 : t2; loser[m] = t1wins ? t2 : t1;
+    if (isWatched) watched = { outcome: winner[m] === live.home ? 'H' : 'A', pens };
     statsOf(t1).gf += hg; statsOf(t1).ga += ag;
     statsOf(t2).gf += ag; statsOf(t2).ga += hg;
   }
@@ -282,11 +320,12 @@ function simulateBracket(seeded, statsOf, knownWinner) {
   play(FINAL_MATCH, winner[SF_MATCHES[0]], winner[SF_MATCHES[1]]);
   stage[winner[FINAL_MATCH]] = STAGE.WINNER;
   stage[loser[FINAL_MATCH]] = STAGE.RUNNER_UP;
-  return stage;
+  return { stage, watched };
 }
 
-function runOneSimulation(state) {
+function runOneSimulation(state, live = null) {
   const { groupStandings: baseSt, groupTeams, groupGames, allTeamStats, knockoutEliminated, knockoutAlive } = state;
+  let watched = null; // outcome of the live-watched game in THIS sim ('H'/'D'/'A')
 
   // Clone group standings
   const st = {};
@@ -300,10 +339,14 @@ function runOneSimulation(state) {
   for (const [t, s] of Object.entries(allTeamStats)) stats[t] = { ...s };
   function statsOf(t) { if (!stats[t]) stats[t] = { gf: 0, ga: 0 }; return stats[t]; }
 
-  // Simulate remaining group games
+  // Simulate remaining group games (a live-watched game keeps its current score
+  // and only plays out the remaining minutes — see simulateBracket for knockout)
   for (const g of groupGames) {
     if (g.done || !g.group) continue;
-    const hg = poisson(goalLambda(g.home)), ag = poisson(goalLambda(g.away));
+    const isWatched = live && !live.isKO && g.home === live.home && g.away === live.away;
+    const hg = isWatched ? live.hg + poisson(goalLambda(g.home) * live.remFrac) : poisson(goalLambda(g.home));
+    const ag = isWatched ? live.ag + poisson(goalLambda(g.away) * live.remFrac) : poisson(goalLambda(g.away));
+    if (isWatched) watched = { outcome: hg > ag ? 'H' : ag > hg ? 'A' : 'D', pens: false };
     if (!st[g.group]) st[g.group] = {};
     const gs = st[g.group];
     if (!gs[g.home]) gs[g.home] = { pts: 0, gf: 0, ga: 0, gp: 0 };
@@ -361,9 +404,11 @@ function runOneSimulation(state) {
   for (const r of (state.koResults || [])) knownWinner[[r.a, r.b].sort().join('::')] = r.winner;
 
   // ── Walk the fixed bracket (path-dependent) ──
-  Object.assign(stage, simulateBracket(seeded, statsOf, knownWinner));
+  const bracket = simulateBracket(seeded, statsOf, knownWinner, live);
+  Object.assign(stage, bracket.stage);
+  if (bracket.watched) watched = bracket.watched;
 
-  return { stage, stats };
+  return { stage, stats, watched };
 }
 
 function rankFantasyTeams(stage, stats) {
@@ -387,7 +432,12 @@ function rankFantasyTeams(stage, stats) {
     .map(s => s.team);
 }
 
-function runMonteCarlo(state, N = 10000) {
+// `live` (optional) marks ONE not-yet-finished game to simulate from its current
+// scoreline: { home, away, hg, ag, remFrac, isKO }. Goals already scored stay on
+// the board; only λ × remFrac of the match is simulated. Every sim is tagged with
+// that game's outcome so the result carries conditional distributions per outcome
+// ('H'/'D'/'A', knockout pens resolve to H or A) — this powers the swing meter.
+function runMonteCarlo(state, N = 10000, live = null) {
   // Fixed seed (NOT tied to results): the only thing that should move the numbers
   // between snapshots is new match results, never Monte Carlo resampling noise.
   // Must match the constant in generate-history.js so the grid reconciles with the chart.
@@ -396,11 +446,23 @@ function runMonteCarlo(state, N = 10000) {
   const counts = {};
   for (const t of teams) counts[t] = new Array(16).fill(0);
   const orderCounts = {};
+  const newCond = () => {
+    const c = { n: 0, pens: 0, counts: {} };
+    for (const t of teams) c.counts[t] = new Array(16).fill(0);
+    return c;
+  };
+  const condTally = live ? { H: newCond(), D: newCond(), A: newCond() } : null;
 
   for (let i = 0; i < N; i++) {
-    const { stage, stats } = runOneSimulation(state);
+    const { stage, stats, watched } = runOneSimulation(state, live);
     const ranked = rankFantasyTeams(stage, stats);
     ranked.forEach((team, idx) => counts[team][idx]++);
+    if (condTally && watched) {
+      const c = condTally[watched.outcome];
+      c.n++;
+      if (watched.pens) c.pens++;
+      ranked.forEach((team, idx) => c.counts[team][idx]++);
+    }
     const key = ranked.join('|');
     orderCounts[key] = (orderCounts[key] || 0) + 1;
   }
@@ -412,6 +474,21 @@ function runMonteCarlo(state, N = 10000) {
     adp[t] = counts[t].reduce((sum, c, i) => sum + c * (i + 1), 0) / N;
   }
 
+  // Conditional pick distributions per watched-game outcome (share = P(outcome))
+  let cond = null;
+  if (condTally) {
+    cond = {};
+    for (const [o, c] of Object.entries(condTally)) {
+      if (!c.n) continue;
+      const oProbs = {}, oAdp = {};
+      for (const t of teams) {
+        oProbs[t] = c.counts[t].map(x => (x / c.n) * 100);
+        oAdp[t] = c.counts[t].reduce((sum, x, i) => sum + x * (i + 1), 0) / c.n;
+      }
+      cond[o] = { probs: oProbs, adp: oAdp, share: (c.n / N) * 100, pens: (c.pens / N) * 100 };
+    }
+  }
+
   // Most common full draft orders. Ties (equal frequency) are broken by smallest
   // total absolute deviation from ADP — the ordering closest to expectation ranks first.
   const deviation = order => order.reduce((sum, t, i) => sum + Math.abs((i + 1) - adp[t]), 0);
@@ -421,7 +498,7 @@ function runMonteCarlo(state, N = 10000) {
     .slice(0, 10)
     .map(({ order, cnt }) => ({ order, pct: (cnt / N) * 100 }));
 
-  return { probs, topOrders, adp };
+  return { probs, topOrders, adp, cond };
 }
 
 // Std deviation of a team's pick distribution, derived from probs (percentages)

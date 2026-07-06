@@ -223,6 +223,137 @@ h1 {
 .mc-match.mc-done { opacity: 0.72; }
 .mc-match.mc-done .mc-ft { color: var(--muted); }
 
+/* ─── SWING METER (live draft impact of the featured game) ────────────────── */
+.swing-meter {
+  display: flex;
+  align-items: stretch;
+  background: #05080f;
+  border-bottom: 1px solid var(--line);
+}
+.sw-tag { background: linear-gradient(145deg, #7a5c10, #4a3708); }
+.sw-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 6px 12px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(140, 165, 200, 0.3) transparent;
+}
+.sw-body::-webkit-scrollbar { height: 6px; }
+.sw-body::-webkit-scrollbar-thumb { background: rgba(140, 165, 200, 0.25); border-radius: 3px; }
+.sw-match { display: flex; align-items: center; gap: 14px; white-space: nowrap; }
+.sw-fixture {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: #0a101c;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 0.18rem 0.5rem;
+  color: var(--silver);
+  font: 500 0.68rem var(--font-num);
+  flex-shrink: 0;
+}
+.sw-fixture strong { color: #fff; }
+.sw-fixture.sw-inplay { border-color: rgba(239, 68, 68, 0.55); }
+.sw-clock { color: #f87171; font-weight: 700; }
+.sw-fixture.sw-inplay .sw-clock::before { content: '● '; color: #ef4444; animation: livePulse 1.6s ease-in-out infinite; }
+.sw-kick { color: var(--blue-bright); font-weight: 700; }
+.sw-pso { color: #fcd34d; font-style: normal; font-weight: 700; }
+.sw-odds {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font: 600 0.6rem var(--font-display);
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+.sw-odd { display: inline-flex; align-items: center; gap: 4px; color: var(--silver); }
+.sw-odd em { color: #fcd34d; font-style: normal; font-weight: 700; }
+.sw-odd.sw-pens { color: var(--muted); }
+.sw-grid { display: flex; flex-direction: column; gap: 2px; min-width: max-content; }
+.sw-row { display: flex; align-items: center; gap: 2px; }
+.sw-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: 148px;
+  flex-shrink: 0;
+  font: 600 0.68rem var(--font-num);
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.sw-name .team-logo { width: 18px; height: 18px; object-fit: contain; }
+.sw-name-label { font: 600 0.54rem var(--font-display); letter-spacing: 0.14em; color: var(--muted); }
+.sw-swing {
+  font: 700 0.58rem var(--font-num);
+  color: #fcd34d;
+  background: rgba(252, 211, 77, 0.12);
+  border-radius: 3px;
+  padding: 0 4px;
+}
+.sw-cell {
+  width: 32px;
+  height: 20px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  font: 600 0.62rem var(--font-num);
+  cursor: default;
+}
+.sw-cell-head { background: none !important; color: var(--muted); font-size: 0.55rem; height: 12px; }
+.sw-adp { width: 40px; flex-shrink: 0; text-align: right; font: 700 0.66rem var(--font-num); color: var(--blue-bright); }
+.sw-adp-head { color: var(--muted); font-size: 0.55rem; font-weight: 600; }
+
+/* ─── FULL SWING TABLE (history-section tab, all 16 teams) ────────────────── */
+#history-swing { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; overflow-x: auto; }
+#history-swing.hidden { display: none; }
+.swf-empty { color: var(--muted); font: 500 0.78rem var(--font-num); padding: 18px 4px; }
+.swf-table { display: flex; flex-direction: column; gap: 3px; min-width: max-content; }
+.swf-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #0a101c;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 4px 10px;
+}
+.swf-row.swf-top { border-color: rgba(252, 211, 77, 0.45); }
+.swf-row.swf-head { background: none; border-color: transparent; padding-bottom: 0; }
+.swf-head span {
+  font: 600 0.56rem var(--font-display) !important;
+  letter-spacing: 0.14em;
+  color: var(--muted) !important;
+  text-transform: uppercase;
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.swf-name {
+  display: inline-flex; align-items: center; gap: 6px;
+  width: 165px; flex-shrink: 0;
+  font: 600 0.72rem var(--font-num); color: #fff;
+  white-space: nowrap; overflow: hidden;
+}
+.swf-name .team-logo { width: 20px; height: 20px; object-fit: contain; }
+.swf-adp { width: 62px; flex-shrink: 0; text-align: center; font: 700 0.78rem var(--font-num); color: var(--blue-bright); }
+.swf-delta {
+  width: 130px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  font: 700 0.72rem var(--font-num);
+  white-space: nowrap;
+}
+.swf-delta.swf-up   { color: #34d399; }
+.swf-delta.swf-down { color: #f87171; }
+.swf-delta.swf-flat { color: var(--muted); font-weight: 500; }
+.swf-swing { width: 56px; flex-shrink: 0; text-align: center; font: 700 0.7rem var(--font-num); color: #fcd34d; }
+
 /* ─── SECTION BARS & CONTROLS ─────────────────────────────────────────────── */
 .section-bar {
   display: flex;
