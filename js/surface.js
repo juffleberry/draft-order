@@ -46,26 +46,38 @@ function surfDeltaTint(r, g, b, d) {
 
 function renderSurface(probs, sortCol) {
   const world = document.getElementById('surface-world');
-  const teams = sortTeams(Object.keys(FANTASY_TEAMS), probs, sortCol, lastAdp);
+  const allTeams = sortTeams(Object.keys(FANTASY_TEAMS), probs, sortCol, lastAdp);
   const deltas = typeof lastProbsDelta !== 'undefined' ? lastProbsDelta : null;
+
+  // Locked picks leave the 3D field: they render as a badge strip above the
+  // viewport, and both their row and their pick column are dropped so the
+  // surface only spans the still-uncertain space.
+  const lockedEntries = computeLockedPicks(probs);
+  const lockedTeams = new Set(lockedEntries.map(e => e.team));
+  const lockedPicks = new Set(lockedEntries.map(e => e.pick));
+  const teams = allTeams.filter(t => !lockedTeams.has(t));
+  const picks = Array.from({ length: 16 }, (_, i) => i).filter(i => !lockedPicks.has(i));
+  renderLockStrip('surface-lockstrip', lockedEntries);
+
   const C = SURF.cell;
-  const size = 16 * C;
-  world.style.width = `${size}px`;
-  world.style.height = `${size}px`;
-  world.style.marginLeft = `${-size / 2}px`;
-  world.style.marginTop = `${-size / 2}px`;
+  const width = Math.max(picks.length, 1) * C;
+  const depth = Math.max(teams.length, 1) * C;
+  world.style.width = `${width}px`;
+  world.style.height = `${depth}px`;
+  world.style.marginLeft = `${-width / 2}px`;
+  world.style.marginTop = `${-depth / 2}px`;
 
   let html = '';
 
-  // Floor heat tiles (all 256 cells — the floor IS the heat map)
+  // Floor heat tiles (every remaining cell — the floor IS the heat map)
   teams.forEach((team, zi) => {
-    for (let xi = 0; xi < 16; xi++) {
+    picks.forEach((xi, xp) => {
       const pct = probs[team][xi];
       const d = deltas?.[team]?.[xi] ?? 0;
       const [r, g, b] = surfDeltaTint(...heatRGB(pct), d);
       html += `<div class="stile" data-team="${team}" data-pick="${xi}" data-pct="${pct}"${deltas ? ` data-delta="${d.toFixed(1)}"` : ''}
-        style="left:${xi * C}px;top:${zi * C}px;width:${C}px;height:${C}px;background:${shadeRGB(r, g, b, 1, 14)}"></div>`;
-    }
+        style="left:${xp * C}px;top:${zi * C}px;width:${C}px;height:${C}px;background:${shadeRGB(r, g, b, 1, 14)}"></div>`;
+    });
   });
 
   // Bars for cells above threshold. While a live game is folded in, bars are
@@ -73,11 +85,11 @@ function renderSurface(probs, sortCol) {
   // for probability gained since kickoff, or a translucent red "ghost" cap
   // standing where lost probability used to be.
   teams.forEach((team, zi) => {
-    for (let xi = 0; xi < 16; xi++) {
+    picks.forEach((xi, xp) => {
       const pct = probs[team][xi];
       const d = deltas?.[team]?.[xi] ?? 0;
       const base = pct - d; // pre-kickoff probability
-      if (Math.max(pct, base) < SURF.minBarPct) continue;
+      if (Math.max(pct, base) < SURF.minBarPct) return;
       const h = Math.round((pct / 100) * SURF.maxH);
       const hBase = Math.round((base / 100) * SURF.maxH);
       const seg = deltas && Math.abs(d) >= 1 ? (d > 0 ? 'gain' : 'loss') : null;
@@ -91,7 +103,7 @@ function renderSurface(probs, sortCol) {
       const inset = 4; // gap so bars read as separate towers
       const bw = C - inset * 2;
       html += `<div class="sbar" data-team="${team}" data-pick="${xi}" data-pct="${pct}"${deltas ? ` data-delta="${d.toFixed(1)}" data-base="${base.toFixed(1)}"` : ''}
-        style="left:${xi * C + inset}px;top:${zi * C + inset}px;width:${bw}px;height:${bw}px">
+        style="left:${xp * C + inset}px;top:${zi * C + inset}px;width:${bw}px;height:${bw}px">
         <div class="sf sf-top" style="transform:translateZ(${blueH}px);background:${top}"></div>
         <div class="sf sf-n" style="width:${bw}px;height:${blueH}px;background:${faceA}"></div>
         <div class="sf sf-s" style="width:${bw}px;height:${blueH}px;top:${bw}px;background:${faceA}"></div>
@@ -111,21 +123,23 @@ function renderSurface(probs, sortCol) {
         <div class="sf" style="width:${segH}px;height:${bw}px;left:${bw}px;transform-origin:0 0;transform:translateZ(${blueH}px) rotateY(-90deg);background:${sB};${op}"></div>`;
       }
       html += `</div>`;
-    }
+    });
   });
 
   // Axis labels — team names along the left edge, pick numbers along the bottom
+  // (pick labels keep their real slot numbers, so gaps read as locked picks)
   teams.forEach((team, zi) => {
     html += `<div class="surf-label surf-label-team" style="top:${zi * C}px;height:${C}px;line-height:${C}px">${team}</div>`;
   });
-  for (let xi = 0; xi < 16; xi++) {
-    html += `<div class="surf-label surf-label-pick" style="left:${xi * C}px;top:${size + 6}px;width:${C}px">P${xi + 1}</div>`;
-  }
+  picks.forEach((xi, xp) => {
+    html += `<div class="surf-label surf-label-pick" style="left:${xp * C}px;top:${depth + 6}px;width:${C}px">P${xi + 1}</div>`;
+  });
 
   world.innerHTML = html;
   applySurfaceTransform();
   surfaceDirty = false;
 }
+
 
 // ─── SURFACE INTERACTION (drag rotate, wheel zoom, hover tooltip) ───────────
 function initSurfaceInteraction() {

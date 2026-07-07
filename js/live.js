@@ -182,13 +182,25 @@ function renderSwingFull() {
   const { adp, cond } = res;
   const meta = swingOutcomeMeta(spec);
   const outcomes = ['H', 'D', 'A'].filter(o => cond[o]);
+  // Teams already locked into a pick get a Lions-blue wash — no game outcome
+  // can move them, so their deltas are noise.
+  const lockedAt = new Map(computeLockedPicks(res.probs).map(e => [e.team, e.pick]));
 
+  // Biggest swing first; locked teams sink to the bottom in pick order.
   const ranked = Object.keys(FANTASY_TEAMS)
     .map(team => {
       const adps = outcomes.map(o => cond[o].adp[team]);
       return { team, swing: Math.max(...adps) - Math.min(...adps) };
     })
-    .sort((a, b) => b.swing - a.swing);
+    .sort((a, b) => {
+      const la = lockedAt.get(a.team), lb = lockedAt.get(b.team);
+      if (la !== undefined || lb !== undefined) {
+        if (la === undefined) return -1;
+        if (lb === undefined) return 1;
+        return la - lb;
+      }
+      return b.swing - a.swing;
+    });
 
   const head = `
     <div class="swf-row swf-head">
@@ -198,7 +210,8 @@ function renderSwingFull() {
       <span class="swf-swing">SWING</span>
     </div>`;
 
-  const deltaCell = (team, o) => {
+  const deltaCell = (team, o, locked) => {
+    if (locked) return `<span class="swf-delta swf-flat">·</span>`;
     const d = cond[o].adp[team] - adp[team];
     const cls = d <= -0.05 ? 'swf-up' : d >= 0.05 ? 'swf-down' : 'swf-flat';
     const arrow = d <= -0.05 ? '▲' : d >= 0.05 ? '▼' : '·';
@@ -206,13 +219,19 @@ function renderSwingFull() {
       title="${team} if ${meta[o].label}: ADP ${cond[o].adp[team].toFixed(1)} (now ${adp[team].toFixed(1)})">${arrow} ${d > 0 ? '+' : ''}${d.toFixed(1)}</span>`;
   };
 
-  const rows = ranked.map(({ team, swing }, i) => `
-    <div class="swf-row ${i < 2 ? 'swf-top' : ''}">
-      <span class="swf-name">${teamLogoImg(team)}<b>${team}</b></span>
-      <span class="swf-adp">${adp[team].toFixed(1)}</span>
-      ${outcomes.map(o => deltaCell(team, o)).join('')}
-      <span class="swf-swing">±${swing.toFixed(1)}</span>
-    </div>`).join('');
+  // Locked rows drop the number noise: whole-number ADP, bare flat markers,
+  // and no ±swing (it's zero by definition).
+  const rows = ranked.map(({ team, swing }, i) => {
+    const lockPick = lockedAt.get(team);
+    const locked = lockPick !== undefined;
+    return `
+    <div class="swf-row ${i < 2 ? 'swf-top' : ''}${locked ? ' swf-locked' : ''}"${locked ? ` title="${team} is locked at pick ${lockPick + 1} — this game can't move them"` : ''}>
+      <span class="swf-name">${teamLogoImg(team)}<b>${team}</b>${locked ? `<span class="swf-locktag">🔒 P${lockPick + 1}</span>` : ''}</span>
+      <span class="swf-adp">${locked ? adp[team].toFixed(0) : adp[team].toFixed(1)}</span>
+      ${outcomes.map(o => deltaCell(team, o, locked)).join('')}
+      <span class="swf-swing">${locked ? '' : `±${swing.toFixed(1)}`}</span>
+    </div>`;
+  }).join('');
 
   el.innerHTML = swingMatchHtml(fixture, spec, cond) + `<div class="swf-table">${head}${rows}</div>`;
 }
