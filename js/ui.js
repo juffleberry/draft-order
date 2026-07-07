@@ -370,6 +370,24 @@ function initCarousel() {
 
   document.getElementById('car-prev').addEventListener('click', () => animateCarouselTo(Math.round(carPos) - 1));
   document.getElementById('car-next').addEventListener('click', () => animateCarouselTo(Math.round(carPos) + 1));
+
+  // Wheel / trackpad: scroll through the chips without click-dragging. The
+  // dominant axis drives so trackpad horizontal swipes and mouse wheels both
+  // work; snaps to the nearest chip once the gesture goes idle.
+  let wheelSnapTimer = null;
+  stage.addEventListener('wheel', e => {
+    if (!carCount) return;
+    const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    if (!delta) return;
+    e.preventDefault();
+    cancelCarAnim();
+    hideTooltip();
+    const px = delta * (e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? window.innerHeight : 1);
+    carPos = Math.max(-0.35, Math.min(carCount - 0.65, carPos + px / carouselSpacing()));
+    layoutCarousel();
+    clearTimeout(wheelSnapTimer);
+    wheelSnapTimer = setTimeout(() => animateCarouselTo(Math.round(carPos)), 140);
+  }, { passive: false });
 }
 
 function chipSlideHtml(entry, i) {

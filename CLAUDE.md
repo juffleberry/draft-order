@@ -41,7 +41,8 @@ If tied between two fantasy teams, then tiebreakers are:
 ## UI Spec
 - ESPN-broadcast-style "3D sports studio" look: the draft chips are 3D domino
   slabs (front face + edge faces) in a drag/swipe coverflow carousel — click a
-  chip or use the arrows to centre it; default focus is the middle of the order.
+  chip, use the arrows, or mouse-wheel/trackpad-scroll over the stage (snaps to
+  the nearest chip when idle); default focus is the middle of the order.
   Each chip carries a per-country scorecard (stage rows, pulsing flags for live
   teams, GF/GA)
 - Studio set: video-wall triptych looping real international-match GIFs (Tenor
