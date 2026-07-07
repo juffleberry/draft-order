@@ -1126,23 +1126,30 @@ tr:hover .team-name { color: #fff; background: var(--panel-2); }
 }
 .lockrail-team { overflow: hidden; text-overflow: ellipsis; }
 
-/* Heat-grid variant: same badges laid out as a horizontal strip above the table */
+/* Badges laid out as a single-line horizontal strip above the grid/surface —
+   overflow scrolls sideways (phone) instead of wrapping */
 .grid-lockstrip {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 0.4rem 1rem;
+  gap: 1rem;
   margin-bottom: 0.8rem;
   padding: 0.5rem 0.7rem;
   background: rgba(7, 12, 20, 0.82);
   border: 1px solid rgba(0, 118, 182, 0.45);
   border-radius: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(140, 165, 200, 0.3) transparent;
 }
+.grid-lockstrip::-webkit-scrollbar { height: 5px; }
+.grid-lockstrip::-webkit-scrollbar-thumb { background: rgba(140, 165, 200, 0.25); border-radius: 3px; }
 .lockstrip-title {
   font: 600 0.58rem var(--font-display);
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--blue-bright);
+  flex-shrink: 0;
 }
 .lockstrip-item {
   display: inline-flex;
@@ -1152,6 +1159,7 @@ tr:hover .team-name { color: #fff; background: var(--panel-2); }
   letter-spacing: 0.06em;
   color: var(--text);
   white-space: nowrap;
+  flex-shrink: 0;
 }
 .lockstrip-item .team-logo, .lockstrip-item .team-logo-placeholder {
   width: 16px; height: 16px; margin-right: 0;
