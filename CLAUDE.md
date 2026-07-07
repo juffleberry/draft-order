@@ -67,7 +67,12 @@ If tied between two fantasy teams, then tiebreakers are:
 - Probability matrix has two views: classic 16x16 heat grid (fantasy teams on
   Y, picks 1–16 on X, sort cycles desc→asc→default, expandable team detail rows)
   and a drag-to-rotate 3D surface showing the joint distribution P(team, pick)
-  (`?view=grid|surface` overrides the default). While a game is live the surface
+  (`?view=grid|surface` overrides the default). In BOTH views, locked picks
+  (≥ LOCK_THRESHOLD for one team, via computeLockedPicks in js/ui.js) leave the
+  matrix: their row AND pick column are dropped so it only spans still-uncertain
+  slots (labels keep real slot numbers), and they're listed in a horizontal
+  "Locked Picks" badge strip above each view (shared renderLockStrip in
+  js/ui.js). While a game is live the surface
   bars are STACKED vs the at-kickoff baseline: blue = pre-kickoff level, solid
   green extension = probability gained, translucent red ghost = probability lost
   (tooltips show the ±pp delta; baseline = snapshot else one cached plain run)

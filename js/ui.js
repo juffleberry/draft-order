@@ -48,6 +48,20 @@ function teamLogoImg(fantasyTeam) {
   return `<img class="team-logo" src="${src}" alt="${fantasyTeam}" onerror="this.style.display='none';this.nextSibling.style.display='inline-block'"><span class="team-logo-placeholder" style="display:none"></span>`;
 }
 
+// Picks already decided (one team ≥ LOCK_THRESHOLD at its best slot). Shared
+// by the heat grid and the 3D surface, which both pull these rows/columns out
+// of the matrix and list them separately.
+function computeLockedPicks(probs) {
+  const entries = [];
+  Object.keys(FANTASY_TEAMS).forEach(team => {
+    const row = probs[team];
+    let best = 0;
+    for (let i = 1; i < 16; i++) if (row[i] > row[best]) best = i;
+    if (row[best] >= LOCK_THRESHOLD) entries.push({ team, pick: best });
+  });
+  return entries.sort((a, b) => a.pick - b.pick);
+}
+
 function sortTeams(fantasyTeams, probs, sortCol, adp) {
   return [...fantasyTeams].sort((a, b) => {
     if (sortCol !== null) {
@@ -499,13 +513,22 @@ function renderGrid(probs, currentEstimate, state, sortCol = currentSortCol) {
   const wcTeamStage = computeWcTeamStage(state);
   const finalRanks = computeFinalRanks(state, wcTeamStage);
 
-  const fantasyTeams = Object.keys(FANTASY_TEAMS);
+  // Locked picks leave the matrix: their row and pick column are dropped so
+  // the grid only spans still-uncertain slots; they render as a badge strip
+  // above the table instead.
+  const lockedEntries = computeLockedPicks(probs);
+  const lockedTeams = new Set(lockedEntries.map(e => e.team));
+  const lockedPicks = new Set(lockedEntries.map(e => e.pick));
+  const picks = Array.from({ length: 16 }, (_, i) => i).filter(i => !lockedPicks.has(i));
+  renderLockStrip('grid-lockstrip', lockedEntries);
+
+  const fantasyTeams = Object.keys(FANTASY_TEAMS).filter(t => !lockedTeams.has(t));
   const sortedTeams = sortTeams(fantasyTeams, probs, sortCol, lastAdp);
 
-  // Header
+  // Header (pick columns keep their real slot numbers, so gaps = locked picks)
   const hr = document.createElement('tr');
   const cornerTh = `<th class="corner">FANTASY TEAM</th>`;
-  const pickThs = Array.from({ length: 16 }, (_, i) => {
+  const pickThs = picks.map(i => {
     let cls = 'sortable';
     if (sortCol === i) cls += currentSortDir === 'asc' ? ' sort-asc' : ' sort-desc';
     return `<th class="${cls}" data-pick="${i}">P${i + 1}</th>`;
@@ -542,7 +565,7 @@ function renderGrid(probs, currentEstimate, state, sortCol = currentSortCol) {
     td.innerHTML = `<span class="toggle">▶</span>${teamLogoImg(team)}${team}`;
 
     // Probability cells
-    for (let pick = 0; pick < 16; pick++) {
+    for (const pick of picks) {
       const pct = probs[team][pick];
       const { bg, text } = heatColor(pct);
       const cell = document.createElement('td');
@@ -562,7 +585,7 @@ function renderGrid(probs, currentEstimate, state, sortCol = currentSortCol) {
     detailRow.className = 'detail-row hidden';
 
     const detailTd = document.createElement('td');
-    detailTd.colSpan = 17;
+    detailTd.colSpan = picks.length + 1;
 
     const inner = document.createElement('div');
     inner.className = 'detail-inner';
@@ -601,6 +624,25 @@ function renderGrid(probs, currentEstimate, state, sortCol = currentSortCol) {
       td.classList.toggle('expanded', !isOpen);
     });
   }
+}
+
+// Badge strip above the heat grid / 3D surface listing the picks that are
+// already decided.
+function renderLockStrip(targetId, entries) {
+  const strip = document.getElementById(targetId);
+  if (!entries.length) {
+    strip.classList.add('hidden');
+    strip.innerHTML = '';
+    return;
+  }
+  strip.innerHTML = `<span class="lockstrip-title">🔒 Locked Picks</span>` +
+    entries.map(e =>
+      `<span class="lockstrip-item">
+        <span class="lockrail-pick">P${e.pick + 1}</span>
+        ${teamLogoImg(e.team)}<span class="lockrail-team">${e.team}</span>
+      </span>`).join('') +
+    (entries.length === 16 ? `<span class="lockstrip-done">All 16 picks decided</span>` : '');
+  strip.classList.remove('hidden');
 }
 
 function buildLegend() {
